@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/auth")
 public class AuthController {
 
     /**
@@ -63,10 +63,10 @@ public class AuthController {
     }
 
     /**
-     * Refresco del token JWT a partir del header Authorization
+     * Refresco del token JWT
      *
      * @param request
-     * @return HttpGlobalResponse con el nuevo token
+     * @return nuevo token
      */
     @GetMapping("/refresh")
     public ResponseEntity<HttpGlobalResponse<String>> refreshToken(HttpServletRequest request) {
