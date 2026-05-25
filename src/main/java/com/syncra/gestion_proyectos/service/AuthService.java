@@ -11,6 +11,7 @@ import com.syncra.gestion_proyectos.dto.Users.UserMessage;
 import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
 import com.syncra.gestion_proyectos.entity.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.enums.UserStatusEnum;
 import com.syncra.gestion_proyectos.repository.UsersRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -43,14 +44,17 @@ public class AuthService {
      * @return UserMessage con el resultado de la operación
      */
     public UserMessage register(UserRequestDTO request) {
+
         UserMessage response = new UserMessage();
 
         if (usersRepository.existsByEmail(request.getEmail())) {
+
             response.setUserMessage("El correo ya está en uso");
             return response;
         }
 
         UsersEntity user = new UsersEntity();
+
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setDocumentNumber(request.getDocumentNumber());
@@ -59,12 +63,17 @@ public class AuthService {
         user.setGroupName(request.getGroupName());
         user.setAvatarUrl(request.getAvatarUrl());
 
-        if (request.getRole() != null) {
-            user.setRole(RoleUserEnum.valueOf(request.getRole().toUpperCase()));
-        }
+        // El usuario no puede elegir rol al registrarse
+        user.setRole(RoleUserEnum.APPRENTICE);
+
+        // El usuario queda pendiente de activación
+        user.setStatus(UserStatusEnum.IN_TRAINING);
 
         usersRepository.save(user);
-        response.setUserMessage("Usuario registrado correctamente");
+
+        response.setUserMessage(
+                "Registro exitoso. Tu cuenta está pendiente de activación por un administrador");
+
         return response;
     }
 
@@ -75,11 +84,13 @@ public class AuthService {
      * @return HttpGlobalResponse con el token JWT si las credenciales son correctas
      */
     public HttpGlobalResponse<String> login(UserLoginDTO request) {
+
         HttpGlobalResponse<String> response = new HttpGlobalResponse<>();
 
         Optional<UsersEntity> userFound = usersRepository.findByEmail(request.getEmail());
 
         if (userFound.isEmpty()) {
+
             response.setMessage("Este usuario no se encuentra registrado");
             return response;
         }
@@ -87,13 +98,28 @@ public class AuthService {
         UsersEntity user = userFound.get();
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+
             response.setMessage("Correo o contraseña incorrectos");
             return response;
         }
 
-        String jwt = jwtService.generarToken(user.getId(), user.getEmail(), user.getRole().name());
+        // Validar que la cuenta esté activa
+        if (user.getStatus() != UserStatusEnum.ACTIVE) {
+
+            response.setMessage(
+                    "Tu cuenta aún no ha sido activada por un administrador");
+
+            return response;
+        }
+
+        String jwt = jwtService.generarToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole().name());
+
         response.setMessage("Inicio de sesión exitoso");
         response.setData(jwt);
+
         return response;
     }
 
@@ -104,14 +130,20 @@ public class AuthService {
      * @return HttpGlobalResponse con el nuevo token JWT renovado
      */
     public HttpGlobalResponse<String> refreshToken(String token) {
+
         HttpGlobalResponse<String> response = new HttpGlobalResponse<>();
 
         try {
+
             String newJwt = jwtService.refreshToken(token);
+
             response.setMessage("Token renovado correctamente");
             response.setData(newJwt);
+
         } catch (Exception e) {
+
             log.error("Error al refrescar token: {}", e.getMessage());
+
             response.setMessage("Token inválido o expirado");
         }
 
