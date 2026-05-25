@@ -1,153 +1,130 @@
 package com.syncra.gestion_proyectos.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
 import java.util.Date;
-import java.util.Map;
-import java.util.function.Function;
-
-import javax.crypto.SecretKey;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 
 @Service
 public class JwtService {
 
     /**
-     * Clave secreta inyectada desde el archivo de configuración YAML
+     * Llave secreta
      */
     @Value("${security.jwt.secret-key}")
-    private String KeySecret;
+    private String secretKey;
 
     /**
-     * Tiempo de expiración del token inyectado desde el archivo de configuración YAML
+     * Tiempo de expiración del token
      */
     @Value("${security.jwt.token-expiration}")
-    Long tokenExpiration;
+    private Long expiration;
 
     /**
-     * Transforma la clave secreta de String BASE64 a un objeto SecretKey
-     *
-     * @return clave secreta para firmar el token
+     * Genera la llave de firma
      */
-    private SecretKey getSignKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(KeySecret);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private Key getSigningKey() {
+
+        return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Genera el token JWT al iniciar sesión con los datos del usuario
-     *
-     * @param userId
-     * @param Name
-     * @param rol
-     * @return token JWT firmado
+     * Genera token JWT
      */
-    public String generarToken(long userId, String Name, String rol) {
+    public String generarToken(Long userId, String email, String role) {
+
         return Jwts.builder()
-                .claims(Map.of("userId", userId, "Rol", rol))
-                .subject(Name)
+                .subject(email)
+                .claim("userId", userId)
+                .claim("role", role)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + tokenExpiration))
-                .signWith(getSignKey())
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey())
                 .compact();
     }
 
     /**
-     * Verifica si el token JWT es válido y no ha expirado
-     *
-     * @param token
-     * @return true si el token es válido, false si es inválido o expirado
+     * Extrae todos los claims
      */
-    public boolean isTokenInvalid(String token) {
-        try {
-            Jwts.parser().verifyWith(getSignKey()).build().parseSignedClaims(token);
-            return true;
-        } catch (JwtException e) {
-            e.printStackTrace();
-            return false;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
+    private Claims extractAllClaims(String token) {
 
-    /**
-     * Extrae un claim específico del token JWT aplicando una función de resolución
-     *
-     * @param <T>
-     * @param token
-     * @param resolver
-     * @return valor del claim extraído
-     */
-    public <T> T extractClaims(String token, Function<Claims, T> resolver) {
-        final Claims claims = Jwts.parser()
-                .verifyWith(getSignKey())
+        return Jwts.parser()
+                .verifyWith((javax.crypto.SecretKey) getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-
-        return resolver.apply(claims);
     }
 
     /**
-     * Extrae el email del usuario almacenado como subject en el token
-     *
-     * @param token
-     * @return
+     * Extrae username/email
      */
     public String extractUsername(String token) {
-        return extractClaims(token, Claims::getSubject);
+
+        return extractAllClaims(token).getSubject();
     }
 
     /**
-     * Extrae el identificador único del usuario almacenado en el token
-     *
-     * @param token token JWT
-     * @return id del usuario
+     * Extrae id usuario
      */
     public Long extractUserId(String token) {
-        return extractClaims(token, claims -> claims.get("userId", Long.class));
+
+        return extractAllClaims(token)
+                .get("userId", Long.class);
     }
 
     /**
-     * Extrae el rol del usuario almacenado en el token
-     *
-     * @param token token JWT
-     * @return rol del usuario
+     * Extrae rol
      */
     public String extractRol(String token) {
-        return extractClaims(token, claims -> claims.get("Rol", String.class));
+
+        return extractAllClaims(token)
+                .get("role", String.class);
     }
 
     /**
-     * Genera un nuevo token JWT a partir de uno existente que aún no ha expirado
-     *
-     * @param token
-     * @return
-     * @throws Exception si el token está expirado o es inválido
+     * Verifica si el token expiró
      */
-    public String refreshToken(String token) throws Exception {
-        Claims claims;
+    public boolean isTokenExpired(String token) {
+
+        return extractAllClaims(token)
+                .getExpiration()
+                .before(new Date());
+    }
+
+    /**
+     * Verifica si el token es válido
+     */
+    public boolean isTokenValid(String token) {
 
         try {
-            claims = Jwts.parser()
-                    .verifyWith(getSignKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-        } catch (ExpiredJwtException e) {
-            throw new Exception("Token is expired" + e.getMessage());
-        } catch (JwtException e) {
-            throw new Exception("Token is invalid" + e.getMessage());
+
+            return !isTokenExpired(token);
+
+        } catch (Exception e) {
+
+            return false;
+        }
+    }
+
+    /**
+     * Refresca un token válido
+     */
+    public String refreshToken(String token) {
+
+        if (!isTokenValid(token)) {
+            throw new RuntimeException("Token inválido o expirado");
         }
 
-        return generarToken(claims.get("userId", Long.class), claims.getSubject(), claims.get("Rol", String.class));
+        Long userId = extractUserId(token);
+        String email = extractUsername(token);
+        String role = extractRol(token);
+
+        return generarToken(userId, email, role);
     }
 }
