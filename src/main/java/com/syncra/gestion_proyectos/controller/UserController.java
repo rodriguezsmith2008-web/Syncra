@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/users")
+@RequestMapping("/users")
 public class UserController {
 
     /**
@@ -34,11 +34,6 @@ public class UserController {
      */
     private final UserService userService;
 
-    /**
-     * Lista todos los usuarios — solo ADMIN
-     *
-     * @return lista de UserResponseDTO
-     */
     @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping("/list-users")
     public ResponseEntity<List<UserResponseDTO>> listUsers() {
@@ -51,12 +46,6 @@ public class UserController {
         }
     }
 
-    /**
-     * Busca un usuario por id — solo ADMIN
-     *
-     * @param id
-     * @return UserResponseDTO
-     */
     @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping("/get-user/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
@@ -69,12 +58,6 @@ public class UserController {
         }
     }
 
-    /**
-     * Crea un usuario desde el panel admin — solo ADMIN
-     *
-     * @param request
-     * @return UserMessage con el resultado
-     */
     @RequireRole(RoleUserEnum.ADMIN)
     @PostMapping("/create-user")
     public ResponseEntity<UserMessage> createUser(@RequestBody UserRequestDTO request) {
@@ -87,17 +70,12 @@ public class UserController {
         }
     }
 
-    /**
-     * Actualiza un usuario por id — solo ADMIN
-     * También sirve para activar cuentas (cambiar status a ACTIVE)
-     *
-     * @param id
-     * @param request
-     * @return UserMessage con el resultado
-     */
     @RequireRole(RoleUserEnum.ADMIN)
     @PutMapping("/update-user/{id}")
-    public ResponseEntity<UserMessage> updateUser(@PathVariable Long id, @RequestBody UserUpdateDTO request) {
+    public ResponseEntity<UserMessage> updateUser(
+            @PathVariable Long id,
+            @RequestBody UserUpdateDTO request) {
+
         try {
             UserMessage response = userService.updateUser(id, request);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
@@ -107,12 +85,6 @@ public class UserController {
         }
     }
 
-    /**
-     * Elimina un usuario por id — solo ADMIN
-     *
-     * @param id
-     * @return UserMessage con el resultado
-     */
     @RequireRole(RoleUserEnum.ADMIN)
     @DeleteMapping("/delete-user/{id}")
     public ResponseEntity<UserMessage> deleteUser(@PathVariable Long id) {
