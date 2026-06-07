@@ -1,12 +1,11 @@
-package com.syncra.gestion_proyectos.dto.Acess;
-
-import java.sql.Date;
+package com.syncra.gestion_proyectos.dto.Access;
 
 import lombok.Data;
 
 @Data
-
-public class AcessRequestDTO {
+public class AccessResponseDTO {
+    
+    private Long id;
 
     private String firstName;
 
@@ -17,9 +16,9 @@ public class AcessRequestDTO {
     private String documentNumber;
 
     private String groupName;
-    
+
     private String status;
 
-    private Date createdAt;
-    
+    private String createdAt;
+
 }

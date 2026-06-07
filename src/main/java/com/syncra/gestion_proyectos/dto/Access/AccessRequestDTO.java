@@ -1,10 +1,10 @@
-package com.syncra.gestion_proyectos.dto.Acess;
+package com.syncra.gestion_proyectos.dto.Access;
 
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import lombok.Data;
 
 @Data
-public class AcessResponseDTO {
-    private Long id;
+public class AccessRequestDTO {
 
     private String firstName;
 
@@ -16,8 +16,5 @@ public class AcessResponseDTO {
 
     private String groupName;
 
-    private String status;
-
-    private String createdAt;
-
+    private RoleUserEnum role;
 }
