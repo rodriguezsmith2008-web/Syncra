@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.service.access;
 
 import java.util.List;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.Access.AccessMessageDTO;
@@ -22,6 +23,7 @@ public class AccessRequestService {
 
     private final AcessRequestRepository accessRequestRepository;
     private final UsersRepository usersRepository;
+    private final PasswordEncoder passwordEncoder;
 
     //Crea la peticion de acceso y se valida si ya hay una solicitud pendiente con ese correoo o si el correo ya esta registardo 
 
@@ -122,7 +124,9 @@ public class AccessRequestService {
         newUser.setDocumentNumber(request.getDocumentNumber());
         newUser.setGroupName(request.getGroupName());
         newUser.setRole(request.getRole());
-        newUser.setPassword("Syncra_" + request.getDocumentNumber());
+
+        //se incripta la contraseña y se genera automaticamente una al ser aceptado
+       newUser.setPassword(passwordEncoder.encode("Syncra_" + request.getDocumentNumber()));
         newUser.setStatus(UserStatusEnum.IN_TRAINING);
 
         usersRepository.save(newUser);

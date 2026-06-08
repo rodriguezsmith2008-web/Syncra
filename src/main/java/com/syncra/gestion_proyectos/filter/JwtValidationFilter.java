@@ -91,12 +91,14 @@ public class JwtValidationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
         String path = request.getRequestURI();
+        String method = request.getMethod();
 
-        /**
-         * Endpoints públicos
-         */
-        return path.startsWith("/api/v1/auth") ||
-        //al ser una solicitu no necesita el token
-                path.startsWith("/api/v1/access-requests");
+        // POST /api/v1/access-requests — público, cualquiera puede solicitar acceso
+        if (path.equals("/api/v1/access-requests") && method.equals("POST")) {
+            return true;
+        }
+
+        // Auth siempre público
+        return path.startsWith("/api/v1/auth");
     }
 }
