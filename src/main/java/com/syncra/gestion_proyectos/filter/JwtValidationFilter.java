@@ -26,8 +26,8 @@ public class JwtValidationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         // Header Authorization
@@ -91,10 +91,14 @@ public class JwtValidationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
         String path = request.getRequestURI();
+        String method = request.getMethod();
 
-        /**
-         * Endpoints públicos
-         */
+        // POST /api/v1/access-requests — público, cualquiera puede solicitar acceso
+        if (path.equals("/api/v1/access-requests") && method.equals("POST")) {
+            return true;
+        }
+
+        // Auth siempre público
         return path.startsWith("/api/v1/auth");
     }
 }
