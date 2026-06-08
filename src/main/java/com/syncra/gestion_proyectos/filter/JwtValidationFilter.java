@@ -26,8 +26,8 @@ public class JwtValidationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         // Header Authorization
@@ -95,6 +95,8 @@ public class JwtValidationFilter extends OncePerRequestFilter {
         /**
          * Endpoints públicos
          */
-        return path.startsWith("/api/v1/auth");
+        return path.startsWith("/api/v1/auth") ||
+        //al ser una solicitu no necesita el token
+                path.startsWith("/api/v1/access-requests");
     }
 }
