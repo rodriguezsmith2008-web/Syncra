@@ -11,6 +11,7 @@ import com.syncra.gestion_proyectos.dto.Access.AccessResponseDTO;
 import com.syncra.gestion_proyectos.entity.access.AccessRequestEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.AccessStatusEnum;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
 import com.syncra.gestion_proyectos.repository.access.AcessRequestRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
@@ -25,15 +26,22 @@ public class AccessRequestService {
     private final UsersRepository usersRepository;
     private final PasswordEncoder passwordEncoder;
 
-    //Crea la peticion de acceso y se valida si ya hay una solicitud pendiente con ese correoo o si el correo ya esta registardo 
+    // Crea la peticion de acceso y se valida si ya hay una solicitud pendiente con
+    // ese correoo o si el correo ya esta registardo
 
     public AccessMessageDTO<String> createRequest(AccessRequestDTO request) {
 
         AccessMessageDTO<String> message = new AccessMessageDTO<>();
 
+
+//valida que no se pueda enviar una peticion con ADMIN
+        if (request.getRole() == null || request.getRole() == RoleUserEnum.ADMIN) {
+            message.setMessage("Rol no válido, solo se permite INSTRUCTOR o APPRENTICE");
+            return message;
+        }
+
         boolean existeRequest = accessRequestRepository.existsByEmailAndStatus(
-            request.getEmail(), AccessStatusEnum.PENDING
-        );
+                request.getEmail(), AccessStatusEnum.PENDING);
         if (existeRequest) {
             message.setMessage("Ya existe una solicitud pendiente con este email");
             return message;
@@ -45,7 +53,7 @@ public class AccessRequestService {
             return message;
         }
 
-//se guarda la con el estado pendoiente
+        // se guarda la con el estado pendoiente
         AccessRequestEntity entity = new AccessRequestEntity();
         entity.setFirstName(request.getFirstName());
         entity.setLastName(request.getLastName());
@@ -59,14 +67,13 @@ public class AccessRequestService {
         return message;
     }
 
-
-    //trae las solicitudes pendientes, y las convierte en la respuesta
+    // trae las solicitudes pendientes, y las convierte en la respuesta
     public AccessMessageDTO<List<AccessResponseDTO>> findAllPending() {
 
         AccessMessageDTO<List<AccessResponseDTO>> message = new AccessMessageDTO<>();
 
         List<AccessRequestEntity> solicitudes = accessRequestRepository
-            .findAllByStatus(AccessStatusEnum.PENDING);
+                .findAllByStatus(AccessStatusEnum.PENDING);
 
         if (solicitudes.isEmpty()) {
             message.setMessage("No hay solicitudes pendientes");
@@ -81,6 +88,7 @@ public class AccessRequestService {
             dto.setEmail(s.getEmail());
             dto.setDocumentNumber(s.getDocumentNumber());
             dto.setGroupName(s.getGroupName());
+            dto.setRole(s.getRole().name());
             dto.setStatus(s.getStatus().name());
             dto.setCreatedAt(s.getCreatedAt().toString());
             return dto;
@@ -91,9 +99,9 @@ public class AccessRequestService {
         return message;
     }
 
+    // Valida las solicitudes, si ya existe la solicitud, cambia el estado, si ya se
+    // uso ese correo, envia la informacion a usuarios
 
-    //Valida las solicitudes, si ya existe la solicitud, cambia el estado, si ya se uso ese correo, envia la informacion a usuarios 
-    
     public AccessMessageDTO<String> approveRequest(Long id) {
 
         AccessMessageDTO<String> message = new AccessMessageDTO<>();
@@ -125,8 +133,8 @@ public class AccessRequestService {
         newUser.setGroupName(request.getGroupName());
         newUser.setRole(request.getRole());
 
-        //se incripta la contraseña y se genera automaticamente una al ser aceptado
-       newUser.setPassword(passwordEncoder.encode("Syncra_" + request.getDocumentNumber()));
+        // se incripta la contraseña y se genera automaticamente una al ser aceptado
+        newUser.setPassword(passwordEncoder.encode("Syncra_" + request.getDocumentNumber()));
         newUser.setStatus(UserStatusEnum.IN_TRAINING);
 
         usersRepository.save(newUser);
@@ -138,9 +146,9 @@ public class AccessRequestService {
         return message;
     }
 
+    // Este es por si el admin rechasa la peticion yu valida, si ya existe la
+    // solicitud, si ya fue aprovada y si fue rechazada, cambia el estado
 
-    //Este es por si el admin rechasa la peticion yu valida, si ya existe la solicitud, si ya fue aprovada y si fue rechazada, cambia el estado
-   
     public AccessMessageDTO<String> rejectRequest(Long id) {
 
         AccessMessageDTO<String> message = new AccessMessageDTO<>();
