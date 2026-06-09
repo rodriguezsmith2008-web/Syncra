@@ -17,6 +17,8 @@ public class AccessResponseDTO {
 
     private String groupName;
 
+    private String role;   
+
     private String status;
 
     private String createdAt;
