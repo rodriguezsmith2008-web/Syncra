@@ -3,13 +3,10 @@ package com.syncra.gestion_proyectos.repository.access;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
 import com.syncra.gestion_proyectos.entity.access.AccessRequestEntity;
 import com.syncra.gestion_proyectos.enums.AccessStatusEnum;
 
 
-@Repository
 public interface AcessRequestRepository extends JpaRepository<AccessRequestEntity, Long> {
 
      //se usa para verificar si ya existe una solicitud pendiente con ese email antes de crear una nueva.
