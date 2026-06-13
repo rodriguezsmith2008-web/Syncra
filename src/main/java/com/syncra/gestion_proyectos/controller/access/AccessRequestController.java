@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.syncra.gestion_proyectos.dto.Access.AccessMessageDTO;
-import com.syncra.gestion_proyectos.dto.Access.AccessRequestDTO;
-import com.syncra.gestion_proyectos.dto.Access.AccessResponseDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessMessageDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessRequestDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessResponseDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.access.AccessRequestService;

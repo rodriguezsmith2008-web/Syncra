@@ -3,10 +3,10 @@ package com.syncra.gestion_proyectos.controller.user;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.syncra.gestion_proyectos.dto.Users.UserMessage;
-import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
-import com.syncra.gestion_proyectos.dto.Users.UserResponseDTO;
-import com.syncra.gestion_proyectos.dto.Users.UserUpdateDTO;
+import com.syncra.gestion_proyectos.dto.users.UserMessage;
+import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
+import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
+import com.syncra.gestion_proyectos.dto.users.UserUpdateDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.user.UserService;
