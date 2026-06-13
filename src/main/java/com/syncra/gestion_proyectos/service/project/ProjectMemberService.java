@@ -17,8 +17,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectMemberService {
 
+    //Repositorio utilizado para acceder y gestionar la información de los miembros de los proyectos
     private final ProjectMemberRepository memberRepository;
 
+    /**
+     * Obtiene todos los miembros asociados a un proyecto
+     * @param projectId id del proyecto
+     * @return lista de miembros asociados al proyecto
+     */
     public List<ProjectMemberResponseDTO> getMembers(Long projectId) {
         return memberRepository.findByIdProjectId(projectId)
                 .stream()
@@ -26,6 +32,12 @@ public class ProjectMemberService {
                 .toList();
     }
 
+    /**
+     * Agrega un usuario como miembro de un proyecto
+     * @param projectId 
+     * @param userId id del usuario a agregar
+     * @return información del miembro agregado
+     */
     @Transactional
     public ProjectMemberResponseDTO addMember(Long projectId, Long userId) {
         if (memberRepository.existsByIdProjectIdAndIdUserId(projectId, userId)) {
@@ -38,6 +50,11 @@ public class ProjectMemberService {
         return toResponse(memberRepository.save(entity));
     }
 
+    /**
+     * Elimina un miembro de un proyecto
+     * @param projectId 
+     * @param userId
+     */
     @Transactional
     public void removeMember(Long projectId, Long userId) {
         if (!memberRepository.existsByIdProjectIdAndIdUserId(projectId, userId)) {
@@ -46,6 +63,11 @@ public class ProjectMemberService {
         memberRepository.deleteByIdProjectIdAndIdUserId(projectId, userId);
     }
 
+    /**
+     * Convierte una entidad projectmemberentity en un dto de respuesta
+     * @param e entidad que representa la relación entre proyecto y usuario
+     * @return dto con la información del miembro del proyecto
+     */
     private ProjectMemberResponseDTO toResponse(ProjectMemberEntity e) {
         ProjectMemberResponseDTO r = new ProjectMemberResponseDTO();
         r.setProjectId(e.getId().getProjectId());

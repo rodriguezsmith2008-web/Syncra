@@ -16,24 +16,52 @@ import lombok.Data;
 @Table(name = "external_links")
 public class ExternalLinkEntity {
 
+
+    /**
+     * Id único del enlace externo
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * Id del proyecto al que pertenece el enlace
+     */
+
     @Column(name = "project_id", nullable = false)
     private Long projectId;
+
+    /**
+     * Titulo o nombre descriptivo del enlace
+     */
 
     @Column(name = "title", nullable = false, length =  200)
     private String title;
 
+    /**
+     * Dirección URL del recurso externo
+     */
+
     @Column(name = "url", nullable = false, length = 1000)
     private String url;
+
+    /**
+     * Identificador del usuario que registró el enlace
+     */
 
     @Column(name = "added_by", nullable = false)
     private Long addedBy;
 
+    /**
+     * Fecha y hora de la creación del registro
+     */
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Este método se ejecuta antes de insertar el registro a la base de datos y asigna automaticamente la fecha y hora actual en el campo
+     */
 
     @PrePersist
     public void prePersist(){

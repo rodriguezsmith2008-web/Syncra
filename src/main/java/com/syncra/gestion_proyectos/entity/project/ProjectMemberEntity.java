@@ -10,6 +10,9 @@ import lombok.Data;
 @Table(name = "project_members")
 public class ProjectMemberEntity {
 
+    /**
+     * Clave primaria compuesta que contiene los identificadores del proyecto y del usuario asociado
+     */
     @EmbeddedId
     private ProjectMemberId id;
 

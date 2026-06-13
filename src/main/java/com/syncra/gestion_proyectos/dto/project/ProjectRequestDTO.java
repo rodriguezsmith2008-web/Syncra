@@ -7,6 +7,9 @@ import lombok.Data;
 @Data
 public class ProjectRequestDTO {
 
+    /**
+     * Recibe información necesaria para la creación de proyectos 
+     */
     private String name;
     private String description;
     private String groupName;

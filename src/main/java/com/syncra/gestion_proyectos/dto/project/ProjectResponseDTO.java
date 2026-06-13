@@ -10,6 +10,9 @@ import lombok.Data;
 @Data
 public class ProjectResponseDTO {
 
+    /**
+     * Dto de respuesta para devolver la información de un proyecto solo contiene los datos principales de un proyecto
+     */
     private Long id;
     private String name;
     private String description;

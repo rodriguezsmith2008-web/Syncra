@@ -17,8 +17,15 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ExternalLinkService {
 
+    //se utiliza para acceder a la información que hay en el repositorio
     private final ExternalLinkRepository linkRepository;
 
+
+    /**
+     * Obtiene todos los enlaces asociados a un proyecto
+     * @param projectId identificador del proyecto 
+     * @return lista de enlaces externos al proyecto
+     */
     public List<ExternalLinkResponseDTO> getByProject(Long projectId) {
         return linkRepository.findByProjectId(projectId)
                 .stream()
@@ -26,12 +33,25 @@ public class ExternalLinkService {
                 .toList();
     }
 
+    /**
+     * Obtiene un enlace específico perteneciente a un proyecto
+     * @param projectId 
+     * @param linkId id del enlace
+     * @return información del enlace solicitado
+     */
     public ExternalLinkResponseDTO getById(Long projectId, Long linkId) {
         ExternalLinkEntity entity = findOrThrow(linkId);
         validateBelongsToProject(entity, projectId);
         return toResponse(entity);
     }
 
+    /**
+     * Crea un nuevo enlace externo para un proyecto
+     * @param projectId
+     * @param dto datos del enlace a registrar
+     * @param addedBy usuario que registra el enlace
+     * @return información del enlace creado
+     */
     @Transactional
     public ExternalLinkResponseDTO create(Long projectId, ExternalLinkRequestDTO dto, Long addedBy) {
         ExternalLinkEntity entity = new ExternalLinkEntity();
@@ -42,6 +62,13 @@ public class ExternalLinkService {
         return toResponse(linkRepository.save(entity));
     }
 
+    /**
+     * Actualiza la información de un enlace existente
+     * @param projectId
+     * @param linkId
+     * @param dto
+     * @return información actualizada del enlace
+     */
     @Transactional
     public ExternalLinkResponseDTO update(Long projectId, Long linkId, ExternalLinkRequestDTO dto) {
         ExternalLinkEntity entity = findOrThrow(linkId);
@@ -53,6 +80,11 @@ public class ExternalLinkService {
         return toResponse(linkRepository.save(entity));
     }
 
+    /**
+     * Elimina un enlace asociado a un proyecto
+     * @param projectId
+     * @param linkId
+     */
     @Transactional
     public void delete(Long projectId, Long linkId) {
         ExternalLinkEntity entity = findOrThrow(linkId);
@@ -60,17 +92,32 @@ public class ExternalLinkService {
         linkRepository.delete(entity);
     }
 
+    /**
+     * Busca un enlace por su identificador
+     * @param id id del enlace
+     * @return entidad encontrada
+     */
     private ExternalLinkEntity findOrThrow(Long id) {
         return linkRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("ExternalLink not found: " + id));
     }
 
+    /**
+     * Verifica que el enlace pertenezca al proyecto
+     * @param entity entidad del enlace
+     * @param projectId id del proyecto
+     */
     private void validateBelongsToProject(ExternalLinkEntity entity, Long projectId) {
         if (!entity.getProjectId().equals(projectId)) {
             throw new EntityNotFoundException("El enlace no pertenece al proyecto: " + projectId);
         }
     }
 
+    /**
+     * Convierte una entidad en un dto de respuesta
+     * @param e entidad a convertir
+     * @return dto con la información del enlace
+     */
     private ExternalLinkResponseDTO toResponse(ExternalLinkEntity e) {
         ExternalLinkResponseDTO r = new ExternalLinkResponseDTO();
         r.setId(e.getId());
