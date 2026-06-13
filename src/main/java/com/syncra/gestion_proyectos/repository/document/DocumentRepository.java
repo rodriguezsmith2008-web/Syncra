@@ -1,5 +1,10 @@
 package com.syncra.gestion_proyectos.repository.document;
 
-public class DocumentRepository {
-    
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+
+public interface DocumentRepository extends JpaRepository<DocumentEntity,Long>{
+
+     
 }
