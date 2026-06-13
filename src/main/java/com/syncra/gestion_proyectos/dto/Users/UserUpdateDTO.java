@@ -1,4 +1,4 @@
-package com.syncra.gestion_proyectos.dto.Users;
+package com.syncra.gestion_proyectos.dto.users;
 
 import lombok.Data;
 

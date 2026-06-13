@@ -1,4 +1,4 @@
-package com.syncra.gestion_proyectos.dto.Access;
+package com.syncra.gestion_proyectos.dto.access;
 
 import lombok.Data;
 

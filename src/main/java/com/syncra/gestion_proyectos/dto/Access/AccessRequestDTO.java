@@ -1,4 +1,4 @@
-package com.syncra.gestion_proyectos.dto.Access;
+package com.syncra.gestion_proyectos.dto.access;
 
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import lombok.Data;
