@@ -1,0 +1,11 @@
+package com.syncra.gestion_proyectos.dto.project;
+
+import lombok.Data;
+
+@Data
+public class ProjectMemberResponseDTO {
+
+    private Long projectId;
+    private Long userId;
+
+}
