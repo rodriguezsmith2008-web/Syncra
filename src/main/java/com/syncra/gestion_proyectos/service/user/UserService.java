@@ -199,4 +199,128 @@ public class UserService {
 
         return response;
     }
+
+ /**
+     * Busca usuarios según un criterio (RF9)
+     *
+     * @param type tipo de búsqueda: "rol", "document" o "name"
+     * @param criterio texto a buscar según el tipo
+     * @return lista de usuarios encontrados (vacía si no hay coincidencias)
+     */
+    public List<UserResponseDTO> searchUsers(String type, String criterio) {
+
+        switch (type) {
+
+            case "rol":
+                try {
+                    RoleUserEnum role = RoleUserEnum.valueOf(criterio.toUpperCase());
+                    return userSearchRole(role);
+                } catch (IllegalArgumentException e) {
+                    return new ArrayList<>();
+                }
+
+            case "document":
+                UserResponseDTO userFound = userSearchDocumentNUmber(criterio);
+                List<UserResponseDTO> documentResult = new ArrayList<>();
+                if (userFound != null) {
+                    documentResult.add(userFound);
+                }
+                return documentResult;
+
+            case "name":
+                return userSearchName(criterio);
+
+            default:
+                return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Busca usuarios cuyo nombre o apellido contengan el texto indicado
+     *
+     * @param nameOrLasname texto a buscar en nombre o apellido
+     * @return lista de usuarios encontrados
+     */
+    private List<UserResponseDTO> userSearchName(String nameOrLasname) {
+
+        List<UsersEntity> entities = usersRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(nameOrLasname, nameOrLasname);
+        List<UserResponseDTO> dtos = new ArrayList<>();
+
+        for (UsersEntity userfound : entities) {
+            UserResponseDTO dto = new UserResponseDTO();
+            dto.setId(userfound.getId());
+            dto.setFirstName(userfound.getFirstName());
+            dto.setLastName(userfound.getLastName());
+            dto.setDocumentNumber(userfound.getDocumentNumber());
+            dto.setEmail(userfound.getEmail());
+            dto.setRole(userfound.getRole().name());
+            dto.setGroupName(userfound.getGroupName());
+            dto.setAvatarUrl(userfound.getAvatarUrl());
+            dto.setStatus(userfound.getStatus().name());
+
+            dtos.add(dto);
+        }
+        return dtos;
+    }
+
+    /**
+     * Busca un usuario por su número de documento exacto
+     *
+     * @param documentNumber número de documento
+     * @return usuario encontrado, o null si no existe
+     */
+    private UserResponseDTO userSearchDocumentNUmber(String documentNumber) {
+
+        Optional<UsersEntity> userFound = usersRepository.findByDocumentNumber(documentNumber);
+
+        if (userFound.isEmpty()) {
+            return null;
+        }
+
+        UsersEntity user = userFound.get();
+
+        UserResponseDTO response = new UserResponseDTO();
+
+        response.setId(user.getId());
+        response.setFirstName(user.getFirstName());
+        response.setLastName(user.getLastName());
+        response.setDocumentNumber(user.getDocumentNumber());
+        response.setEmail(user.getEmail());
+        response.setRole(user.getRole().name());
+        response.setGroupName(user.getGroupName());
+        response.setAvatarUrl(user.getAvatarUrl());
+        response.setStatus(user.getStatus().name());
+
+        return response;
+    }
+
+    /**
+     * Busca todos los usuarios que tienen el rol indicado
+     *
+     * @param role rol a filtrar
+     * @return lista de usuarios con ese rol
+     */
+    private List<UserResponseDTO> userSearchRole(RoleUserEnum role) {
+
+        List<UsersEntity> entities = usersRepository.findByRole(role);
+        List<UserResponseDTO> dtos = new ArrayList<>();
+
+        for (UsersEntity userfound : entities) {
+            UserResponseDTO dto = new UserResponseDTO();
+            dto.setId(userfound.getId());
+            dto.setFirstName(userfound.getFirstName());
+            dto.setLastName(userfound.getLastName());
+            dto.setDocumentNumber(userfound.getDocumentNumber());
+            dto.setEmail(userfound.getEmail());
+            dto.setRole(userfound.getRole().name());
+            dto.setGroupName(userfound.getGroupName());
+            dto.setAvatarUrl(userfound.getAvatarUrl());
+            dto.setStatus(userfound.getStatus().name());
+
+            dtos.add(dto);
+        }
+        return dtos;
+    }
+
+
 }
