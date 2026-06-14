@@ -137,13 +137,6 @@ public class UserService {
         return response;
     }
 
-    /**
-     * Actualiza un usuario
-     *
-     * @param id
-     * @param request
-     * @return mensaje de respuesta
-     */
     public UserMessage updateUser(Long id, UserUpdateDTO request) {
 
         UserMessage response = new UserMessage();
@@ -166,6 +159,33 @@ public class UserService {
 
         if (request.getStatus() != null) {
             user.setStatus(UserStatusEnum.valueOf(request.getStatus().toUpperCase()));
+        }
+
+        if (request.getRole() != null) {
+
+            RoleUserEnum newRole = null;
+
+            for (RoleUserEnum r : RoleUserEnum.values()) {
+                if (r.name().equalsIgnoreCase(request.getRole())) {
+                    newRole = r;
+                    break;
+                }
+            }
+
+            if (newRole == null) {
+                response.setUserMessage("Rol inválido: " + request.getRole());
+                return response;
+            }
+
+            if (user.getRole() == RoleUserEnum.ADMIN
+                    && newRole != RoleUserEnum.ADMIN
+                    && usersRepository.findByRole(RoleUserEnum.ADMIN).size() <= 1) {
+
+                response.setUserMessage("No se puede cambiar el rol: debe existir al menos un administrador");
+                return response;
+            }
+
+            user.setRole(newRole);
         }
 
         usersRepository.save(user);
@@ -200,10 +220,10 @@ public class UserService {
         return response;
     }
 
- /**
+    /**
      * Busca usuarios según un criterio (RF9)
      *
-     * @param type tipo de búsqueda: "rol", "document" o "name"
+     * @param type     tipo de búsqueda: "rol", "document" o "name"
      * @param criterio texto a buscar según el tipo
      * @return lista de usuarios encontrados (vacía si no hay coincidencias)
      */
@@ -243,7 +263,8 @@ public class UserService {
      */
     private List<UserResponseDTO> userSearchName(String nameOrLasname) {
 
-        List<UsersEntity> entities = usersRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(nameOrLasname, nameOrLasname);
+        List<UsersEntity> entities = usersRepository
+                .findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(nameOrLasname, nameOrLasname);
         List<UserResponseDTO> dtos = new ArrayList<>();
 
         for (UsersEntity userfound : entities) {
@@ -321,6 +342,5 @@ public class UserService {
         }
         return dtos;
     }
-
 
 }

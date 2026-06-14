@@ -17,4 +17,6 @@ public class UserUpdateDTO {
 
     private String status;
 
+    private String role;
+
 }
