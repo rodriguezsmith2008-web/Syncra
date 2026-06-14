@@ -1,6 +1,7 @@
 package com.syncra.gestion_proyectos.controller.user;
 
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.syncra.gestion_proyectos.dto.users.UserMessage;
@@ -34,6 +35,11 @@ public class UserController {
      */
     private final UserService userService;
 
+    /**
+     * Lista todos los usuarios registrados (RF8)
+     *
+     * @return lista de usuarios
+     */
     @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping("/list-users")
     public ResponseEntity<List<UserResponseDTO>> listUsers() {
@@ -46,6 +52,12 @@ public class UserController {
         }
     }
 
+    /**
+     * Busca un usuario por su id
+     *
+     * @param id
+     * @return usuario encontrado
+     */
     @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping("/get-user/{id}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
@@ -58,6 +70,12 @@ public class UserController {
         }
     }
 
+    /**
+     * Crea un nuevo usuario desde el panel administrativo (RF5)
+     *
+     * @param request datos del nuevo usuario
+     * @return mensaje de respuesta
+     */
     @RequireRole(RoleUserEnum.ADMIN)
     @PostMapping("/create-user")
     public ResponseEntity<UserMessage> createUser(@RequestBody UserRequestDTO request) {
@@ -70,6 +88,13 @@ public class UserController {
         }
     }
 
+    /**
+     * Actualiza un usuario (RF7)
+     *
+     * @param id
+     * @param request
+     * @return mensaje de respuesta
+     */
     @RequireRole(RoleUserEnum.ADMIN)
     @PutMapping("/update-user/{id}")
     public ResponseEntity<UserMessage> updateUser(
@@ -85,12 +110,37 @@ public class UserController {
         }
     }
 
+    /**
+     * Elimina un usuario
+     *
+     * @param id
+     * @return mensaje de respuesta
+     */
     @RequireRole(RoleUserEnum.ADMIN)
     @DeleteMapping("/delete-user/{id}")
     public ResponseEntity<UserMessage> deleteUser(@PathVariable Long id) {
         try {
             UserMessage response = userService.deleteUser(id);
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Busca usuarios según un criterio (RF9)
+     *
+     * @param type     tipo de búsqueda: "rol", "document" o "name"
+     * @param criterio texto a buscar según el tipo
+     * @return lista de usuarios encontrados
+     */
+    @RequireRole(RoleUserEnum.ADMIN)
+    @GetMapping("/search-users")
+    public ResponseEntity<List<UserResponseDTO>> searchUsers(@RequestParam String type,@RequestParam String criterio) {
+        try {
+            List<UserResponseDTO> response = userService.searchUsers(type, criterio);
+            return ResponseEntity.status(HttpStatus.FOUND).body(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
