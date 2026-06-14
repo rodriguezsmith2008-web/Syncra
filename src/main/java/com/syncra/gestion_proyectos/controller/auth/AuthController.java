@@ -3,10 +3,10 @@ package com.syncra.gestion_proyectos.controller.auth;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.syncra.gestion_proyectos.dto.Users.HttpGlobalResponse;
-import com.syncra.gestion_proyectos.dto.Users.UserLoginDTO;
-import com.syncra.gestion_proyectos.dto.Users.UserMessage;
-import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
+import com.syncra.gestion_proyectos.dto.users.HttpGlobalResponse;
+import com.syncra.gestion_proyectos.dto.users.UserLoginDTO;
+import com.syncra.gestion_proyectos.dto.users.UserMessage;
+import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.service.auth.AuthService;
 
 import jakarta.servlet.http.HttpServletRequest;

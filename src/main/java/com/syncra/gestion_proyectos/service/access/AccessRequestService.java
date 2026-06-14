@@ -5,9 +5,9 @@ import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.syncra.gestion_proyectos.dto.Access.AccessMessageDTO;
-import com.syncra.gestion_proyectos.dto.Access.AccessRequestDTO;
-import com.syncra.gestion_proyectos.dto.Access.AccessResponseDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessMessageDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessRequestDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessResponseDTO;
 import com.syncra.gestion_proyectos.entity.access.AccessRequestEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.AccessStatusEnum;

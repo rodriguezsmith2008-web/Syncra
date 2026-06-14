@@ -5,10 +5,10 @@ import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.syncra.gestion_proyectos.dto.Users.HttpGlobalResponse;
-import com.syncra.gestion_proyectos.dto.Users.UserLoginDTO;
-import com.syncra.gestion_proyectos.dto.Users.UserMessage;
-import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
+import com.syncra.gestion_proyectos.dto.users.HttpGlobalResponse;
+import com.syncra.gestion_proyectos.dto.users.UserLoginDTO;
+import com.syncra.gestion_proyectos.dto.users.UserMessage;
+import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
