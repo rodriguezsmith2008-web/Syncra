@@ -9,6 +9,9 @@ import lombok.Data;
 @Data
 public class ProjectUpdateDTO {
 
+    /**
+     * Recibe información necesaria para actualizar un proyecto y permite modificar los datos básicos
+     */
     private String name;
     private String description;
     private String groupName;

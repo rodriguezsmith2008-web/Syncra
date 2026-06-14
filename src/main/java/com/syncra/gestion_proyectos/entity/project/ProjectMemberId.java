@@ -11,7 +11,9 @@ import lombok.Data;
 @AllArgsConstructor
 public class ProjectMemberId implements Serializable {
 
+    //id del proyecto
     private Long projectId;
 
+    //id del usuario miembro del proyecto
     private Long userId;
 }

@@ -19,8 +19,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectService {
 
+    //Repositorio utilizado para acceder y gestionar la información de los proyectos almacenados en la base de datos
     private final ProjectRepository projectRepository;
 
+    /**
+     * Obtiene todos los proyectos registrados en el sistema
+     * @return lista de proyectos
+     */
     public List<ProjectResponseDTO> getAll() {
         return projectRepository.findAll()
                 .stream()
@@ -28,10 +33,21 @@ public class ProjectService {
                 .toList();
     }
 
+    /**
+     * Obtiene un proyecto a partir de su id
+     * @param id id del proyecto
+     * @return información del proyecto solicitado
+     */
     public ProjectResponseDTO getById(Long id) {
         return toResponse(findOrThrow(id));
     }
 
+    /**
+     * Crear un nuevo proyecto
+     * @param dto datos necesarios para crear un proyecto
+     * @param createdBy id del usuario creador
+     * @return información del proyecto creado
+     */
     @Transactional
     public ProjectResponseDTO create(ProjectRequestDTO dto, Long createdBy) {
         ProjectEntity entity = new ProjectEntity();
@@ -44,6 +60,12 @@ public class ProjectService {
         return toResponse(projectRepository.save(entity));
     }
 
+    /**
+     * Actualiza la información de un proyecto existente 
+     * @param id
+     * @param dto datos a actualizar
+     * @return información actualizada del proyecto
+     */
     @Transactional
     public ProjectResponseDTO update(Long id, ProjectUpdateDTO dto) {
         ProjectEntity entity = findOrThrow(id);
@@ -56,11 +78,21 @@ public class ProjectService {
         return toResponse(projectRepository.save(entity));
     }
 
+    /**
+     * Elimina un proyecto del sistema
+     * @param id 
+     */
     @Transactional
     public void delete(Long id) {
         projectRepository.delete(findOrThrow(id));
     }
 
+    /**
+     * Actualiza el estado de un proyecto
+     * @param id
+     * @param status estado del proyecto
+     * @return información actualizada del proyecto 
+     */
     @Transactional
     public ProjectResponseDTO updateStatus(Long id, ProjectStatusEnum status) {
         ProjectEntity entity = findOrThrow(id);
@@ -68,11 +100,21 @@ public class ProjectService {
         return toResponse(projectRepository.save(entity));
     }
 
+    /**
+     * Busca un proyecto por su id
+     * @param id
+     * @return entidad del proyecto encontrada
+     */
     private ProjectEntity findOrThrow(Long id) {
         return projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found: " + id));
     }
 
+    /**
+     * Convierte una entidad projectentity en un dto de respuesta
+     * @param e entidad del proyecto
+     * @return dto con la información del proyecto 
+     */
     private ProjectResponseDTO toResponse(ProjectEntity e) {
         ProjectResponseDTO r = new ProjectResponseDTO();
         r.setId(e.getId());

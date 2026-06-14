@@ -7,6 +7,9 @@ import lombok.Data;
 @Data
 public class ExternalLinkResponseDTO {
 
+    /**
+     * Dto utilizado para devolver la información de un enlace externo asociado a un proyecto
+     */
     private Long id;
     private Long projectId;
     private String title;
