@@ -25,11 +25,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequiredArgsConstructor
 public class ExternalLinkController {
 
-    //Servicio encargado de la lógica de negocio de los enlaces externos 
+    // Servicio encargado de la lógica de negocio de los enlaces externos
     private final ExternalLinkService linkService;
 
     /**
      * Obtiene todos los enlaces asociados a un proyecto
+     * 
      * @param projectId id del proyecto
      * @return lista de enlaces externos
      */
@@ -40,19 +41,23 @@ public class ExternalLinkController {
 
     /**
      * Obtiene un enlace específico de un proyecto
+     * 
      * @param projectId
-     * @param linkId id del enlace
+     * @param linkId    id del enlace
      * @return info del enlace solicitado
      */
-    @GetMapping("/{linkId")
-    public ResponseEntity<ExternalLinkResponseDTO> getById(@PathVariable Long projectId, @PathVariable Long linkId) {
+    @GetMapping("/{linkId}")
+    public ResponseEntity<ExternalLinkResponseDTO> getById(
+            @PathVariable Long projectId,
+            @PathVariable Long linkId) {
         return ResponseEntity.ok(linkService.getById(projectId, linkId));
     }
 
     /**
      * Crea un nuevo enlace asocuado a un proyecto
+     * 
      * @param projectId
-     * @param dto información del enlace
+     * @param dto       información del enlace
      * @return enlace creado
      */
     @PostMapping
@@ -64,9 +69,10 @@ public class ExternalLinkController {
 
     /**
      * Actualiza la información de un enlace existente
+     * 
      * @param projectId
      * @param linkId
-     * @param dto nuevos datos del enlace
+     * @param dto       nuevos datos del enlace
      * @return enlace actualizado
      */
     @PutMapping("/{linkId}")
@@ -77,6 +83,7 @@ public class ExternalLinkController {
 
     /**
      * Elimina un enlace asociado a un proyecto
+     * 
      * @param projectId
      * @param linkId
      * @return respuesta sin contenido
