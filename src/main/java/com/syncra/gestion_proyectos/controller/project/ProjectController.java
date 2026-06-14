@@ -1,5 +1,97 @@
 package com.syncra.gestion_proyectos.controller.project;
 
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
+import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
+import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
+import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
+import com.syncra.gestion_proyectos.service.project.ProjectService;
+
+import lombok.RequiredArgsConstructor;
+
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+
+@RestController
+@RequestMapping("/projects")
+@RequiredArgsConstructor
 public class ProjectController {
-    
+
+    //servicio encargado de la lógica de negocio de los proyectos
+    private final ProjectService projectService;
+
+    /**
+     * Obtiene todos los proyectos registrados
+     * @return lista de proyectos
+     */
+    @GetMapping
+    public ResponseEntity<List<ProjectResponseDTO>> getAll() {
+        return ResponseEntity.ok(projectService.getAll());
+    }
+
+    /**
+     * Obtiene un proyecto por su id
+     * @param id id del proyecto
+     * @return info del proyecto
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ProjectResponseDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(projectService.getById(id));
+    }
+
+    /**
+     * Crea un nuevo proyecto
+     * @param dto datos del proyecto
+     * @return proyecto creado
+     */
+    @PostMapping
+    public ResponseEntity<ProjectResponseDTO> create(@RequestBody ProjectRequestDTO dto) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(projectService.create(dto, 1L));
+    }
+
+    /**
+     * Actualiza la info de un proyecto existente 
+     * @param id id proyecto
+     * @param dto datos actualizados
+     * @return proyecto actualizado
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ProjectResponseDTO> update(@PathVariable Long id, @RequestBody ProjectUpdateDTO dto) {
+        return ResponseEntity.ok(projectService.update(id, dto));
+    }
+
+    /**
+     * Actualiza el estado de un proyecto
+     * @param id
+     * @param status nuevo estado
+     * @return proyecto actualizado
+     */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ProjectResponseDTO> updateStatus(@PathVariable Long id,
+            @RequestBody ProjectStatusEnum status) {
+        return ResponseEntity.ok(projectService.updateStatus(id, status));
+    }
+
+    /**
+     * Elimina un proyecto
+     * @param id
+     * @return respuesta sin contenido
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        projectService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
 }
