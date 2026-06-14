@@ -4,14 +4,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.syncra.gestion_proyectos.dto.users.UserMessage;
-import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
-import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
-import com.syncra.gestion_proyectos.dto.users.UserUpdateDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserMessage;
+import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserResponseDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserUpdateDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserUpdateMeDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.user.UserService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
@@ -36,7 +38,7 @@ public class UserController {
     private final UserService userService;
 
     /**
-     * Lista todos los usuarios registrados (RF8)
+     * Lista todos los usuarios registrados
      *
      * @return lista de usuarios
      */
@@ -71,7 +73,7 @@ public class UserController {
     }
 
     /**
-     * Crea un nuevo usuario desde el panel administrativo (RF5)
+     * Crea un nuevo usuario desde el panel administrativo
      *
      * @param request datos del nuevo usuario
      * @return mensaje de respuesta
@@ -89,7 +91,7 @@ public class UserController {
     }
 
     /**
-     * Actualiza un usuario (RF7)
+     * Actualiza un usuario
      *
      * @param id
      * @param request
@@ -129,7 +131,7 @@ public class UserController {
     }
 
     /**
-     * Busca usuarios según un criterio (RF9)
+     * Busca usuarios según un criterio
      *
      * @param type     tipo de búsqueda: "rol", "document" o "name"
      * @param criterio texto a buscar según el tipo
@@ -137,10 +139,49 @@ public class UserController {
      */
     @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping("/search-users")
-    public ResponseEntity<List<UserResponseDTO>> searchUsers(@RequestParam String type,@RequestParam String criterio) {
+    public ResponseEntity<List<UserResponseDTO>> searchUsers(@RequestParam String type, @RequestParam String criterio) {
         try {
             List<UserResponseDTO> response = userService.searchUsers(type, criterio);
             return ResponseEntity.status(HttpStatus.FOUND).body(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Obtiene el perfil del usuario autenticado
+     *
+     * @param request
+     * @return datos del usuario autenticado
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UserResponseDTO> getOwnProfile(HttpServletRequest request) {
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            UserResponseDTO response = userService.getUserById(userId);
+            return ResponseEntity.status(HttpStatus.FOUND).body(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Actualiza el perfil del usuario autenticado
+     *
+     * @param request
+     * @param update
+     * @return mensaje de respuesta
+     */
+    @PutMapping("/me")
+    public ResponseEntity<UserMessage> updateOwnProfile(
+            HttpServletRequest request,
+            @RequestBody UserUpdateMeDTO update) {
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            UserMessage response = userService.updateProfile(userId, update);
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);

@@ -7,10 +7,11 @@ import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.syncra.gestion_proyectos.dto.users.UserMessage;
-import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
-import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
-import com.syncra.gestion_proyectos.dto.users.UserUpdateDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserMessage;
+import com.syncra.gestion_proyectos.dto.Users.UserRequestDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserResponseDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserUpdateDTO;
+import com.syncra.gestion_proyectos.dto.Users.UserUpdateMeDTO;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
@@ -137,13 +138,6 @@ public class UserService {
         return response;
     }
 
-    /**
-     * Actualiza un usuario
-     *
-     * @param id
-     * @param request
-     * @return mensaje de respuesta
-     */
     public UserMessage updateUser(Long id, UserUpdateDTO request) {
 
         UserMessage response = new UserMessage();
@@ -166,6 +160,33 @@ public class UserService {
 
         if (request.getStatus() != null) {
             user.setStatus(UserStatusEnum.valueOf(request.getStatus().toUpperCase()));
+        }
+
+        if (request.getRole() != null) {
+
+            RoleUserEnum newRole = null;
+
+            for (RoleUserEnum r : RoleUserEnum.values()) {
+                if (r.name().equalsIgnoreCase(request.getRole())) {
+                    newRole = r;
+                    break;
+                }
+            }
+
+            if (newRole == null) {
+                response.setUserMessage("Rol inválido: " + request.getRole());
+                return response;
+            }
+
+            if (user.getRole() == RoleUserEnum.ADMIN
+                    && newRole != RoleUserEnum.ADMIN
+                    && usersRepository.findByRole(RoleUserEnum.ADMIN).size() <= 1) {
+
+                response.setUserMessage("No se puede cambiar el rol: debe existir al menos un administrador");
+                return response;
+            }
+
+            user.setRole(newRole);
         }
 
         usersRepository.save(user);
@@ -200,10 +221,10 @@ public class UserService {
         return response;
     }
 
- /**
-     * Busca usuarios según un criterio (RF9)
+    /**
+     * Busca usuarios según un criterio
      *
-     * @param type tipo de búsqueda: "rol", "document" o "name"
+     * @param type     tipo de búsqueda: "rol", "document" o "name"
      * @param criterio texto a buscar según el tipo
      * @return lista de usuarios encontrados (vacía si no hay coincidencias)
      */
@@ -243,7 +264,8 @@ public class UserService {
      */
     private List<UserResponseDTO> userSearchName(String nameOrLasname) {
 
-        List<UsersEntity> entities = usersRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(nameOrLasname, nameOrLasname);
+        List<UsersEntity> entities = usersRepository
+                .findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(nameOrLasname, nameOrLasname);
         List<UserResponseDTO> dtos = new ArrayList<>();
 
         for (UsersEntity userfound : entities) {
@@ -322,5 +344,67 @@ public class UserService {
         return dtos;
     }
 
+   /**
+ * Actualiza el perfil del usuario autenticado
+ *
+ * @param id id del usuario autenticado (extraído del JWT)
+ * @param update datos a actualizar
+ * @return mensaje de respuesta
+ */
+public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
+
+    UserMessage message = new UserMessage();
+    Optional<UsersEntity> user = usersRepository.findById(id);
+
+    if (user.isEmpty()) {
+        message.setUserMessage("usuario no encontrado");
+        return message;
+    }
+
+    UsersEntity usersEntity = user.get();
+
+    if (update.getEmail() == null || update.getEmail().equals(usersEntity.getEmail())) {
+        usersEntity.setEmail(usersEntity.getEmail());
+    } else {
+        boolean exist = usersRepository.existsByEmail(update.getEmail());
+
+        if (exist == true) {
+            message.setUserMessage("Correo ya existente");
+            usersEntity.setEmail(usersEntity.getEmail());
+            return message;
+        } else {
+            usersEntity.setEmail(update.getEmail());
+        }
+    }
+
+    if (update.getFirstName() == null || usersEntity.getFirstName().equals(update.getFirstName())) {
+        usersEntity.setFirstName(usersEntity.getFirstName());
+    } else {
+        usersEntity.setFirstName(update.getFirstName());
+    }
+
+    if (update.getLastName() == null || usersEntity.getLastName().equals(update.getLastName())) {
+        usersEntity.setLastName(usersEntity.getLastName());
+    } else {
+        usersEntity.setLastName(update.getLastName());
+    }
+
+    if (update.getDocumentNumber() == null || usersEntity.getDocumentNumber().equals(update.getDocumentNumber())) {
+        usersEntity.setDocumentNumber(usersEntity.getDocumentNumber());
+    } else {
+        usersEntity.setDocumentNumber(update.getDocumentNumber());
+    }
+
+    if (update.getAvatarUrl() == null || usersEntity.getAvatarUrl().equals(update.getAvatarUrl())) {
+        usersEntity.setAvatarUrl(usersEntity.getAvatarUrl());
+    } else {
+        usersEntity.setAvatarUrl(update.getAvatarUrl());
+    }
+
+    usersRepository.save(usersEntity);
+    message.setUserMessage("actualizacion exitosa");
+
+    return message;
+}
 
 }
