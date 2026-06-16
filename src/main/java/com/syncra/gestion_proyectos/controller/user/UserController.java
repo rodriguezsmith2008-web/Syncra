@@ -47,7 +47,7 @@ public class UserController {
     public ResponseEntity<List<UserResponseDTO>> listUsers() {
         try {
             List<UserResponseDTO> response = userService.listUsers();
-            return ResponseEntity.status(HttpStatus.FOUND).body(response);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -65,7 +65,7 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         try {
             UserResponseDTO response = userService.getUserById(id);
-            return ResponseEntity.status(HttpStatus.FOUND).body(response);
+           return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -142,7 +142,7 @@ public class UserController {
     public ResponseEntity<List<UserResponseDTO>> searchUsers(@RequestParam String type, @RequestParam String criterio) {
         try {
             List<UserResponseDTO> response = userService.searchUsers(type, criterio);
-            return ResponseEntity.status(HttpStatus.FOUND).body(response);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -160,7 +160,7 @@ public class UserController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             UserResponseDTO response = userService.getUserById(userId);
-            return ResponseEntity.status(HttpStatus.FOUND).body(response);
+           return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);

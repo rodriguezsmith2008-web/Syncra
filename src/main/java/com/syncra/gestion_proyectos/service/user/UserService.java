@@ -344,67 +344,44 @@ public class UserService {
         return dtos;
     }
 
-   /**
- * Actualiza el perfil del usuario autenticado
- *
- * @param id id del usuario autenticado (extraído del JWT)
- * @param update datos a actualizar
- * @return mensaje de respuesta
- */
-public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
+    /**
+     * Actualiza el perfil del usuario autenticado
+     *
+     * @param id     id del usuario autenticado (extraído del JWT)
+     * @param update datos a actualizar
+     * @return mensaje de respuesta
+     */
 
-    UserMessage message = new UserMessage();
-    Optional<UsersEntity> user = usersRepository.findById(id);
+    public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
+        UserMessage message = new UserMessage();
+        Optional<UsersEntity> user = usersRepository.findById(id);
 
-    if (user.isEmpty()) {
-        message.setUserMessage("usuario no encontrado");
-        return message;
-    }
-
-    UsersEntity usersEntity = user.get();
-
-    if (update.getEmail() == null || update.getEmail().equals(usersEntity.getEmail())) {
-        usersEntity.setEmail(usersEntity.getEmail());
-    } else {
-        boolean exist = usersRepository.existsByEmail(update.getEmail());
-
-        if (exist == true) {
-            message.setUserMessage("Correo ya existente");
-            usersEntity.setEmail(usersEntity.getEmail());
+        if (user.isEmpty()) {
+            message.setUserMessage("usuario no encontrado");
             return message;
-        } else {
+        }
+
+        UsersEntity usersEntity = user.get();
+
+        if (update.getEmail() != null && !update.getEmail().equals(usersEntity.getEmail())) {
+            if (usersRepository.existsByEmail(update.getEmail())) {
+                message.setUserMessage("Correo ya existente");
+                return message;
+            }
             usersEntity.setEmail(update.getEmail());
         }
+
+        if (update.getFirstName() != null)
+            usersEntity.setFirstName(update.getFirstName());
+        if (update.getLastName() != null)
+            usersEntity.setLastName(update.getLastName());
+        if (update.getDocumentNumber() != null)
+            usersEntity.setDocumentNumber(update.getDocumentNumber());
+        if (update.getAvatarUrl() != null)
+            usersEntity.setAvatarUrl(update.getAvatarUrl());
+
+        usersRepository.save(usersEntity);
+        message.setUserMessage("Actualización exitosa");
+        return message;
     }
-
-    if (update.getFirstName() == null || usersEntity.getFirstName().equals(update.getFirstName())) {
-        usersEntity.setFirstName(usersEntity.getFirstName());
-    } else {
-        usersEntity.setFirstName(update.getFirstName());
-    }
-
-    if (update.getLastName() == null || usersEntity.getLastName().equals(update.getLastName())) {
-        usersEntity.setLastName(usersEntity.getLastName());
-    } else {
-        usersEntity.setLastName(update.getLastName());
-    }
-
-    if (update.getDocumentNumber() == null || usersEntity.getDocumentNumber().equals(update.getDocumentNumber())) {
-        usersEntity.setDocumentNumber(usersEntity.getDocumentNumber());
-    } else {
-        usersEntity.setDocumentNumber(update.getDocumentNumber());
-    }
-
-    if (update.getAvatarUrl() == null || usersEntity.getAvatarUrl().equals(update.getAvatarUrl())) {
-        usersEntity.setAvatarUrl(usersEntity.getAvatarUrl());
-    } else {
-        usersEntity.setAvatarUrl(update.getAvatarUrl());
-    }
-
-    usersRepository.save(usersEntity);
-    message.setUserMessage("actualizacion exitosa");
-
-    return message;
-}
-
 }

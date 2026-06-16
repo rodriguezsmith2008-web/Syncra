@@ -15,4 +15,8 @@ public interface AcessRequestRepository extends JpaRepository<AccessRequestEntit
    //se usa para que el admin vea todas las solicitudes PENDING. Si le pasas APPROVED te trae las aprobadas
     List<AccessRequestEntity> findAllByStatus(AccessStatusEnum status);
 
+    boolean existsByDocumentNumberAndStatus(String documentNumber, AccessStatusEnum status);
+
+    
+
 }

@@ -7,6 +7,8 @@ import com.syncra.gestion_proyectos.dto.users.HttpGlobalResponse;
 import com.syncra.gestion_proyectos.dto.users.UserLoginDTO;
 import com.syncra.gestion_proyectos.dto.users.UserMessage;
 import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.auth.AuthService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +36,8 @@ public class AuthController {
      * @param request
      * @return UserMessage con el resultado
      */
+
+    @RequireRole(RoleUserEnum.ADMIN)
     @PostMapping("/register")
     public ResponseEntity<UserMessage> register(@RequestBody UserRequestDTO request) {
         try {
