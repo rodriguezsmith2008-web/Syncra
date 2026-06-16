@@ -1,0 +1,6 @@
+# Este archivo le dice a Spring Boot qué clases debe ejecutar
+# automáticamente durante el arranque de la aplicación, antes
+# de que el contexto de Spring esté completamente inicializado.
+
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.syncra.gestion_proyectos.config.DotenvEnvironmentPostProcessor
