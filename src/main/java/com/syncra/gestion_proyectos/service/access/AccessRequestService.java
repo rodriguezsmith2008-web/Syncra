@@ -33,10 +33,24 @@ public class AccessRequestService {
 
         AccessMessageDTO<String> message = new AccessMessageDTO<>();
 
-
-//valida que no se pueda enviar una peticion con ADMIN
+        // valida que no se pueda enviar una peticion con ADMIN
         if (request.getRole() == null || request.getRole() == RoleUserEnum.ADMIN) {
             message.setMessage("Rol no válido, solo se permite INSTRUCTOR o APPRENTICE");
+            return message;
+        }
+
+        // valida que el documento no esté en una solicitud pendiente
+        boolean existeDocRequest = accessRequestRepository.existsByDocumentNumberAndStatus(
+                request.getDocumentNumber(), AccessStatusEnum.PENDING);
+        if (existeDocRequest) {
+            message.setMessage("Ya existe una solicitud pendiente con este número de documento");
+            return message;
+        }
+
+        // valida que el documento no esté ya registrado en users
+        boolean existeDocUser = usersRepository.existsByDocumentNumber(request.getDocumentNumber());
+        if (existeDocUser) {
+            message.setMessage("Este número de documento ya está registrado en el sistema");
             return message;
         }
 
@@ -50,6 +64,12 @@ public class AccessRequestService {
         boolean existeUser = usersRepository.existsByEmail(request.getEmail());
         if (existeUser) {
             message.setMessage("Este email ya está registrado en el sistema");
+            return message;
+        }
+
+        // valida que el documento no sea null o vacío
+        if (request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()) {
+            message.setMessage("El número de documento es requerido");
             return message;
         }
 
@@ -125,6 +145,11 @@ public class AccessRequestService {
             return message;
         }
 
+        if (request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()) {
+            message.setMessage("El número de documento es requerido para aprobar la solicitud");
+            return message;
+        }
+
         UsersEntity newUser = new UsersEntity();
         newUser.setFirstName(request.getFirstName());
         newUser.setLastName(request.getLastName());
@@ -166,8 +191,7 @@ public class AccessRequestService {
             return message;
         }
 
-        request.setStatus(AccessStatusEnum.REJECTED);
-        accessRequestRepository.save(request);
+        accessRequestRepository.delete(request);
 
         message.setMessage("Solicitud de " + request.getFirstName() + " " + request.getLastName() + " rechazada");
         return message;

@@ -99,6 +99,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
         }
 
         // Auth siempre público
-        return path.startsWith("/api/v1/auth");
+        return path.equals("/api/v1/auth/login") ||
+                path.equals("/api/v1/auth/refresh");
     }
 }

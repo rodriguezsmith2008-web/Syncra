@@ -104,14 +104,10 @@ public class AuthService {
         }
 
         // Validar que la cuenta esté activa
-        if (user.getStatus() != UserStatusEnum.ACTIVE) {
-
-            response.setMessage(
-                    "Tu cuenta aún no ha sido activada por un administrador");
-
+        if (user.getStatus() == UserStatusEnum.WITHDRAWN) {
+            response.setMessage("Tu cuenta ha sido retirada. Contacta al administrador");
             return response;
         }
-
         String jwt = jwtService.generarToken(
                 user.getId(),
                 user.getEmail(),

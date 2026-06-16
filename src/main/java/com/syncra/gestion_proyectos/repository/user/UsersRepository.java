@@ -10,6 +10,8 @@ import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 
 public interface UsersRepository extends JpaRepository<UsersEntity, Long> {
 
+    boolean existsByDocumentNumber(String documentNumber);
+
     /**
      * Busca un usuario por su correo electrónico
      *
