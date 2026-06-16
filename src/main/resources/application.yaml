@@ -3,9 +3,9 @@ spring:
     name: gestion_proyectos
 
   datasource:
-    url: jdbc:mysql://kodama.proxy.rlwy.net:51525/railway
-    username: root
-    password: NqHpDMuYcREfrAVVVkzgdlhzJWzyiZYd
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -16,7 +16,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        
+
 logging:
   level:
     "[org.springframework.web]": DEBUG
@@ -30,6 +30,5 @@ server:
 
 security:
   jwt:
-    # Genera llave secreta con openssl rand -base64 32
-    secret-key: 7ac78817f467def1a5670bfd3309d84844d9f554bbf340768612da41400415d9de83c0ed037fac22934d11b7932068ab7aafe6b7ccae202ad1d205ffb0b3fc5f
-    token-expiration: 600000 # 10 min expresado en ms
+    secret-key: ${JWT_SECRET}
+    token-expiration: ${JWT_EXPIRATION:600000} 
