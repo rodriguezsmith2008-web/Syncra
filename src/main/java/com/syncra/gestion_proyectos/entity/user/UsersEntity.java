@@ -54,9 +54,10 @@ public class UsersEntity {
     private UserStatusEnum status = UserStatusEnum.IN_TRAINING;
 
     @Column(name = "reset_token", length = 100)
-    private String resetToken;
+     private String resetCode;
 
     @Column(name = "reset_token_expires")
-    private LocalDateTime resetTokenExpires;
+   
+    private LocalDateTime resetCodeExpires;
 
 }
