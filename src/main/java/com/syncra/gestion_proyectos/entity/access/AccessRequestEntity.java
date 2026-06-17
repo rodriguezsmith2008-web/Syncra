@@ -40,18 +40,18 @@ public class AccessRequestEntity {
     private String groupName;
 
 
-    //guarda pendiente en la base de datos
+
+    // guarda pendiente en la base de datos
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
     private RoleUserEnum role = RoleUserEnum.APPRENTICE;
 
-
-    //por defecto pone el estado como pendiente
+    // por defecto pone el estado como pendiente
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private AccessStatusEnum status = AccessStatusEnum.PENDING;
 
-    //La fecha se asigna automaticamente en java, sin preguntarle al usuario 
+    // La fecha se asigna automaticamente en java, sin preguntarle al usuario
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 }

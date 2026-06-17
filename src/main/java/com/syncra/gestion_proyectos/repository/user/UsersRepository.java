@@ -34,7 +34,7 @@ public interface UsersRepository extends JpaRepository<UsersEntity, Long> {
      * @param resetToken
      * @return usuario encontrado
      */
-    Optional<UsersEntity> findByResetToken(String resetToken);
+    
 
     /**
      * Busca usuarios cuyo nombre o apellido contengan el texto indicado,
