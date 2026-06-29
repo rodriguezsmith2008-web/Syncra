@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.syncra.gestion_proyectos.dto.users.UserChangePasswordDTO;
 import com.syncra.gestion_proyectos.dto.users.UserMessage;
 import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
@@ -65,7 +66,7 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable Long id) {
         try {
             UserResponseDTO response = userService.getUserById(id);
-           return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -160,7 +161,7 @@ public class UserController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             UserResponseDTO response = userService.getUserById(userId);
-           return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
@@ -181,6 +182,27 @@ public class UserController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             UserMessage response = userService.updateProfile(userId, update);
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Cambia la contraseña del usuario autenticado
+     *
+     * @param request
+     * @param body
+     * @return mensaje de respuesta
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<UserMessage> changePassword(
+            HttpServletRequest request,
+            @RequestBody UserChangePasswordDTO body) {
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            UserMessage response = userService.changePassword(userId, body.getCurrentPassword(), body.getNewPassword());
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
         } catch (Exception e) {
             e.printStackTrace();

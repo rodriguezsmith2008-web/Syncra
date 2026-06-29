@@ -138,6 +138,13 @@ public class UserService {
         return response;
     }
 
+    /**
+     * Actualiza un usuario existente
+     *
+     * @param id
+     * @param request
+     * @return mensaje de respuesta
+     */
     public UserMessage updateUser(Long id, UserUpdateDTO request) {
 
         UserMessage response = new UserMessage();
@@ -152,14 +159,25 @@ public class UserService {
 
         UsersEntity user = userFound.get();
 
-        user.setFirstName(request.getFirstName());
-        user.setLastName(request.getLastName());
-        user.setDocumentNumber(request.getDocumentNumber());
-        user.setGroupName(request.getGroupName());
-        user.setAvatarUrl(request.getAvatarUrl());
+        if (request.getFirstName() != null)      user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null)       user.setLastName(request.getLastName());
+        if (request.getDocumentNumber() != null) user.setDocumentNumber(request.getDocumentNumber());
+        if (request.getGroupName() != null)      user.setGroupName(request.getGroupName());
+        if (request.getAvatarUrl() != null)      user.setAvatarUrl(request.getAvatarUrl());
 
         if (request.getStatus() != null) {
-            user.setStatus(UserStatusEnum.valueOf(request.getStatus().toUpperCase()));
+            UserStatusEnum newStatus = null;
+            for (UserStatusEnum s : UserStatusEnum.values()) {
+                if (s.name().equalsIgnoreCase(request.getStatus())) {
+                    newStatus = s;
+                    break;
+                }
+            }
+            if (newStatus == null) {
+                response.setUserMessage("Estado inválido: " + request.getStatus());
+                return response;
+            }
+            user.setStatus(newStatus);
         }
 
         if (request.getRole() != null) {
@@ -351,8 +369,8 @@ public class UserService {
      * @param update datos a actualizar
      * @return mensaje de respuesta
      */
-
     public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
+
         UserMessage message = new UserMessage();
         Optional<UsersEntity> user = usersRepository.findById(id);
 
@@ -382,6 +400,40 @@ public class UserService {
 
         usersRepository.save(usersEntity);
         message.setUserMessage("Actualización exitosa");
+        return message;
+    }
+
+    /**
+     * Cambia la contraseña del usuario autenticado
+     *
+     * @param id          id del usuario autenticado (extraído del JWT)
+     * @param currentPass contraseña actual
+     * @param newPass     nueva contraseña
+     * @return mensaje de respuesta
+     */
+    public UserMessage changePassword(Long id, String currentPass, String newPass) {
+
+        UserMessage message = new UserMessage();
+
+        Optional<UsersEntity> userFound = usersRepository.findById(id);
+
+        if (userFound.isEmpty()) {
+            message.setUserMessage("Usuario no encontrado");
+            return message;
+        }
+
+        UsersEntity user = userFound.get();
+
+        if (!passwordEncoder.matches(currentPass, user.getPassword())) {
+            message.setUserMessage("La contraseña actual es incorrecta");
+            return message;
+        }
+
+        user.setPassword(passwordEncoder.encode(newPass));
+        usersRepository.save(user);
+
+        message.setUserMessage("Contraseña actualizada correctamente");
+
         return message;
     }
 }
