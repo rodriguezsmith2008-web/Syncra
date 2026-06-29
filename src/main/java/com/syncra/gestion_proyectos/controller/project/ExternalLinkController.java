@@ -7,6 +7,7 @@ import com.syncra.gestion_proyectos.dto.project.ExternalLinkRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ExternalLinkResponseDTO;
 import com.syncra.gestion_proyectos.service.project.ExternalLinkService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
@@ -25,13 +26,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequiredArgsConstructor
 public class ExternalLinkController {
 
-    // Servicio encargado de la lógica de negocio de los enlaces externos
+    // servicio encargado de la lógica de negocio de los enlaces externos
     private final ExternalLinkService linkService;
 
     /**
      * Obtiene todos los enlaces asociados a un proyecto
-     * 
-     * @param projectId id del proyecto
+     *
+     * @param projectId
      * @return lista de enlaces externos
      */
     @GetMapping
@@ -41,9 +42,9 @@ public class ExternalLinkController {
 
     /**
      * Obtiene un enlace específico de un proyecto
-     * 
+     *
      * @param projectId
-     * @param linkId    id del enlace
+     * @param linkId
      * @return info del enlace solicitado
      */
     @GetMapping("/{linkId}")
@@ -54,36 +55,42 @@ public class ExternalLinkController {
     }
 
     /**
-     * Crea un nuevo enlace asocuado a un proyecto
-     * 
+     * Crea un nuevo enlace asociado a un proyecto
+     *
      * @param projectId
-     * @param dto       información del enlace
+     * @param dto
+     * @param request
      * @return enlace creado
      */
     @PostMapping
-    public ResponseEntity<ExternalLinkResponseDTO> create(@PathVariable Long projectId,
-            @RequestBody ExternalLinkRequestDTO dto) {
+    public ResponseEntity<ExternalLinkResponseDTO> create(
+            @PathVariable Long projectId,
+            @RequestBody ExternalLinkRequestDTO dto,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(linkService.create(projectId, dto, 1L));
+                .body(linkService.create(projectId, dto, userId));
     }
 
     /**
      * Actualiza la información de un enlace existente
-     * 
+     *
      * @param projectId
      * @param linkId
-     * @param dto       nuevos datos del enlace
+     * @param dto
      * @return enlace actualizado
      */
     @PutMapping("/{linkId}")
-    public ResponseEntity<ExternalLinkResponseDTO> update(@PathVariable Long projectId, @PathVariable Long linkId,
+    public ResponseEntity<ExternalLinkResponseDTO> update(
+            @PathVariable Long projectId,
+            @PathVariable Long linkId,
             @RequestBody ExternalLinkRequestDTO dto) {
         return ResponseEntity.ok(linkService.update(projectId, linkId, dto));
     }
 
     /**
      * Elimina un enlace asociado a un proyecto
-     * 
+     *
      * @param projectId
      * @param linkId
      * @return respuesta sin contenido
@@ -93,5 +100,4 @@ public class ExternalLinkController {
         linkService.delete(projectId, linkId);
         return ResponseEntity.noContent().build();
     }
-
 }
