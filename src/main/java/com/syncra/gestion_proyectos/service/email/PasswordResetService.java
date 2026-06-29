@@ -1,4 +1,4 @@
-package com.syncra.gestion_proyectos.service.passwordreset;
+package com.syncra.gestion_proyectos.service.email;
 
 import java.time.LocalDateTime;
 import java.util.Optional;

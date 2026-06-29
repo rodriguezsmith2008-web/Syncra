@@ -13,7 +13,7 @@ import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.auth.AuthService;
-import com.syncra.gestion_proyectos.service.passwordreset.PasswordResetService;
+import com.syncra.gestion_proyectos.service.email.PasswordResetService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

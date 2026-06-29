@@ -15,6 +15,7 @@ import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
 import com.syncra.gestion_proyectos.repository.access.AcessRequestRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
+import com.syncra.gestion_proyectos.service.email.EmailService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +26,7 @@ public class AccessRequestService {
     private final AcessRequestRepository accessRequestRepository;
     private final UsersRepository usersRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     // Crea la peticion de acceso y se valida si ya hay una solicitud pendiente con
     // ese correoo o si el correo ya esta registardo
@@ -135,13 +137,13 @@ public class AccessRequestService {
         AccessRequestEntity request = requestO.get();
 
         if (!request.getStatus().equals(AccessStatusEnum.PENDING)) {
-            message.setMessage("La solicitud ya fue procesada");
+            message.setMessage("La solicitud ya fue aprovada");
             return message;
         }
 
         boolean existeUser = usersRepository.existsByEmail(request.getEmail());
         if (existeUser) {
-            message.setMessage("El email ya está registrado como usuario");
+            message.setMessage("El email ya está registrado");
             return message;
         }
 
@@ -149,6 +151,9 @@ public class AccessRequestService {
             message.setMessage("El número de documento es requerido para aprobar la solicitud");
             return message;
         }
+
+        // se incripta la contraseña y se genera automaticamente una al ser aceptado
+        String tempPassword = "Syncra_" + request.getDocumentNumber();
 
         UsersEntity newUser = new UsersEntity();
         newUser.setFirstName(request.getFirstName());
@@ -158,14 +163,20 @@ public class AccessRequestService {
         newUser.setGroupName(request.getGroupName());
         newUser.setRole(request.getRole());
 
-        // se incripta la contraseña y se genera automaticamente una al ser aceptado
-        newUser.setPassword(passwordEncoder.encode("Syncra_" + request.getDocumentNumber()));
+        
+        newUser.setPassword(passwordEncoder.encode(tempPassword));
         newUser.setStatus(UserStatusEnum.IN_TRAINING);
 
         usersRepository.save(newUser);
 
         request.setStatus(AccessStatusEnum.APPROVED);
         accessRequestRepository.save(request);
+
+        // Enviar correo con credenciales de acceso al nuevo usuario
+        emailService.sendAccessApprovedEmail(
+                request.getEmail(),
+                request.getFirstName(),
+                tempPassword);
 
         message.setMessage("Usuario creado exitosamente");
         return message;
