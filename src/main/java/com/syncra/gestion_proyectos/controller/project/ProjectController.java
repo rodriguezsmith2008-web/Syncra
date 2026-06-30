@@ -7,6 +7,8 @@ import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.project.ProjectService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,6 +38,7 @@ public class ProjectController {
      *
      * @return lista de proyectos
      */
+   @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
     @GetMapping
     public ResponseEntity<List<ProjectResponseDTO>> getAll() {
         return ResponseEntity.ok(projectService.getAll());
@@ -47,6 +50,8 @@ public class ProjectController {
      * @param id
      * @return info del proyecto
      */
+
+    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
     @GetMapping("/{id}")
     public ResponseEntity<ProjectResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(projectService.getById(id));
@@ -59,6 +64,7 @@ public class ProjectController {
      * @param request
      * @return proyecto creado
      */
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
     @PostMapping
     public ResponseEntity<ProjectResponseDTO> create(
             @RequestBody ProjectRequestDTO dto,
@@ -75,6 +81,8 @@ public class ProjectController {
      * @param dto
      * @return proyecto actualizado
      */
+
+    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
     @PutMapping("/{id}")
     public ResponseEntity<ProjectResponseDTO> update(@PathVariable Long id, @RequestBody ProjectUpdateDTO dto) {
         return ResponseEntity.ok(projectService.update(id, dto));
@@ -87,6 +95,8 @@ public class ProjectController {
      * @param status
      * @return proyecto actualizado
      */
+
+    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
     @PutMapping("/{id}/status")
     public ResponseEntity<ProjectResponseDTO> updateStatus(@PathVariable Long id,
             @RequestBody ProjectStatusEnum status) {
@@ -99,6 +109,8 @@ public class ProjectController {
      * @param id
      * @return respuesta sin contenido
      */
+
+    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         projectService.delete(id);
