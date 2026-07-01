@@ -8,7 +8,6 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-    spring:
   mail:
     host: smtp.gmail.com
     port: 587
@@ -44,4 +43,4 @@ server:
 security:
   jwt:
     secret-key: ${JWT_SECRET}
-    token-expiration: ${JWT_EXPIRATION:600000} 
+    token-expiration: ${JWT_EXPIRATION:600000}
