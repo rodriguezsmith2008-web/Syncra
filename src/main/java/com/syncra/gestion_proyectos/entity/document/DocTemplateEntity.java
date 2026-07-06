@@ -29,4 +29,7 @@ public class DocTemplateEntity {
     @Column(name = "position", nullable = false)
     private Long position = 0L;
 
+    @Column(name = "default_content", columnDefinition = "LONGTEXT")
+    private String defaultContent;
+
 }
