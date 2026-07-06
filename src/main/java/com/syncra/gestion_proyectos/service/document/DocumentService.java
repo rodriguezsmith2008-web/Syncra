@@ -13,8 +13,10 @@ import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
+import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
 
@@ -29,6 +31,9 @@ public class DocumentService {
 
     /** Repositorio de comentarios de documentos */
     private final DocumentCommentRepository documentCommentRepository;
+
+    /** Repositorio de plantillas de documentos */
+    private final DocTemplateRepository docTemplateRepository;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -90,6 +95,15 @@ public class DocumentService {
         newDocument.setTemplateId(dto.getTemplateId());
         newDocument.setCreatedBy(createdBy);
         newDocument.setUpdatedBy(createdBy);
+
+        if (dto.getTemplateId() != null) {
+
+            Optional<DocTemplateEntity> templateFound = docTemplateRepository.findById(dto.getTemplateId());
+
+            if (templateFound.isPresent()) {
+                newDocument.setContent(templateFound.get().getDefaultContent());
+            }
+        }
 
         documentRepository.save(newDocument);
 
