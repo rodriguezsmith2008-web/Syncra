@@ -128,42 +128,149 @@ public class PasswordResetService {
     }
 
     // Construye el HTML del correo
-  private String buildEmailHtml(String code) {
-    StringBuilder boxes = new StringBuilder();
-    for (char digit : code.toCharArray()) {
-        boxes.append("""
-            <td style="padding: 0 4px;">
-              <div style="
-                width: 48px;
-                height: 60px;
-                border: 2px solid #3b82f6;
-                border-radius: 8px;
-                text-align: center;
-                line-height: 60px;
-                font-size: 28px;
-                font-weight: bold;
-                color: #1d4ed8;
-                background: #eff6ff;">
-                %s
-              </div>
-            </td>
-            """.formatted(digit));
-    }
+    private String buildEmailHtml(String code) {
 
-    return """
-        <div style="font-family: Arial, sans-serif; background-color: #eff6ff; padding: 40px;">
-          <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 12px; padding: 32px; text-align: center; border-top: 4px solid #3b82f6;">
-            <h2 style="color: #1d4ed8; margin: 0 0 4px 0;">Syncra</h2>
-            <p style="color: #3b82f6; font-size: 13px; margin: 0 0 24px 0;">Plataforma de gestión de proyectos</p>
-            <p style="color: #374151; font-size: 15px; margin: 0 0 20px 0;">Tu código de recuperación es:</p>
-            <table style="margin: 0 auto 24px auto; border-collapse: collapse;">
-              <tr>%s</tr>
-            </table>
-            <p style="color: #6b7280; font-size: 13px; margin: 0 0 16px 0;">Este código expira en <strong style="color: #1d4ed8;">15 minutos</strong>.</p>
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 0 0 12px 0;">
-            <p style="color: #9ca3af; font-size: 11px; margin: 0;">Si no solicitaste este código, ignora este correo.</p>
-          </div>
-        </div>
-        """.formatted(boxes.toString());
-}
+        StringBuilder boxes = new StringBuilder();
+
+        for (char digit : code.toCharArray()) {
+            boxes.append("""
+                    <td style="padding:4px;">
+                        <table role="presentation"
+                               cellpadding="0"
+                               cellspacing="0"
+                               border="0"
+                               width="48"
+                               height="60"
+                               style="
+                                   width:48px;
+                                   height:60px;
+                                   border:2px solid #3b82f6;
+                                   border-radius:8px;
+                                   background-color:#eff6ff;
+                                   border-collapse:separate;">
+                            <tr>
+                                <td align="center"
+                                    valign="middle"
+                                    style="
+                                        width:48px;
+                                        height:60px;
+                                        text-align:center;
+                                        vertical-align:middle;
+                                        font-family:Arial,sans-serif;
+                                        font-size:28px;
+                                        font-weight:bold;
+                                        color:#1d4ed8;
+                                        line-height:28px;">
+                                    %s
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    """.formatted(digit));
+        }
+
+        return """
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+
+                <body style="margin:0;padding:0;background:#eff6ff;">
+
+                    <table role="presentation"
+                           cellpadding="0"
+                           cellspacing="0"
+                           border="0"
+                           width="100%%"
+                           style="background:#eff6ff;padding:40px 0;">
+
+                        <tr>
+                            <td align="center">
+
+                                <table role="presentation"
+                                       cellpadding="0"
+                                       cellspacing="0"
+                                       border="0"
+                                       width="480"
+                                       style="
+                                           width:480px;
+                                           max-width:480px;
+                                           background:#ffffff;
+                                           border-radius:12px;
+                                           border-top:4px solid #3b82f6;
+                                           font-family:Arial,sans-serif;">
+
+                                    <tr>
+                                        <td align="center" style="padding:32px;">
+
+                                            <h2 style="
+                                                margin:0;
+                                                color:#1d4ed8;
+                                                font-size:28px;">
+                                                Syncra
+                                            </h2>
+
+                                            <p style="
+                                                margin:8px 0 28px;
+                                                color:#3b82f6;
+                                                font-size:13px;">
+                                                Plataforma de gestión de proyectos
+                                            </p>
+
+                                            <p style="
+                                                margin:0 0 24px;
+                                                color:#374151;
+                                                font-size:16px;">
+                                                Tu código de recuperación es:
+                                            </p>
+
+                                            <table role="presentation"
+                                                   cellpadding="0"
+                                                   cellspacing="0"
+                                                   border="0"
+                                                   align="center"
+                                                   style="margin:0 auto 24px auto;">
+                                                <tr>
+                                                    %s
+                                                </tr>
+                                            </table>
+
+                                            <p style="
+                                                margin:0 0 20px;
+                                                color:#6b7280;
+                                                font-size:14px;">
+                                                Este código expira en
+                                                <strong style="color:#1d4ed8;">
+                                                    15 minutos
+                                                </strong>.
+                                            </p>
+
+                                            <hr style="
+                                                border:none;
+                                                border-top:1px solid #e5e7eb;
+                                                margin:20px 0;">
+
+                                            <p style="
+                                                margin:0;
+                                                color:#9ca3af;
+                                                font-size:12px;">
+                                                Si no solicitaste este código, puedes ignorar este correo.
+                                            </p>
+
+                                        </td>
+                                    </tr>
+
+                                </table>
+
+                            </td>
+                        </tr>
+
+                    </table>
+
+                </body>
+                </html>
+                """.formatted(boxes.toString());
+    }
 }
