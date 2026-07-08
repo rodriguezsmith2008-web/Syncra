@@ -90,19 +90,21 @@ public class JwtValidationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
-        String path = request.getRequestURI();
-        String method = request.getMethod();
-
-        // POST /api/v1/access-requests — público, cualquiera puede solicitar acceso
-        if (path.equals("/api/v1/access-requests") && method.equals("POST")) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
-        // Auth siempre público
-        return path.equals("/api/v1/auth/login") ||
-                path.equals("/api/v1/auth/refresh") ||
-                path.equals("/api/v1/auth/forgot-password") ||
-                path.equals("/api/v1/auth/verify-code") ||
-                path.equals("/api/v1/auth/reset-password");
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        if (path.endsWith("/access-requests") && method.equals("POST")) {
+            return true;
+        }
+
+        return path.endsWith("/auth/login")
+                || path.endsWith("/auth/refresh")
+                || path.endsWith("/auth/forgot-password")
+                || path.endsWith("/auth/verify-code")
+                || path.endsWith("/auth/reset-password");
     }
 }
