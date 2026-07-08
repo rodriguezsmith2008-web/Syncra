@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.syncra.gestion_proyectos.enums.SprintStatusEnum;
-import com.syncra.gestion_proyectos.enums.SprintTypeEnum;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,10 +30,6 @@ public class SprintEntity {
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
-    private SprintTypeEnum type = SprintTypeEnum.SPRINT;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
