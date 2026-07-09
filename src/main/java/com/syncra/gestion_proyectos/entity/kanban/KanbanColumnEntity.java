@@ -26,7 +26,7 @@ public class KanbanColumnEntity {
     @Column(name = "position", nullable = false)
     private Long position = 0L;
 
-    @Column(name = "color", length = 7)
+    @Column(name = "color", length = 20)
     private String color;
 
 }

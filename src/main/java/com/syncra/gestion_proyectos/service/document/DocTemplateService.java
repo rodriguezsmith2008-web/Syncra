@@ -12,11 +12,7 @@ import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 
 import lombok.RequiredArgsConstructor;
 
-/**
- * Service de solo lectura para el catálogo de plantillas de documentos.
- * Las plantillas son fijas y se cargan mediante DocTemplateSeeder,
- * por lo que este servicio no expone creación, edición ni eliminación.
- */
+
 @Service
 @RequiredArgsConstructor
 public class DocTemplateService {
