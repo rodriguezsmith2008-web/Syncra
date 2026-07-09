@@ -94,38 +94,61 @@ public class PasswordResetService {
         return message;
     }
 
-    // Cambia la contraseña si el código es válido
-    public UserMessage resetPassword(String email, String code, String newPassword) {
+   // Cambia la contraseña si el código es válido
+public UserMessage resetPassword(String email, String code, String newPassword) {
 
-        UserMessage message = new UserMessage();
+    UserMessage message = new UserMessage();
 
-        Optional<UsersEntity> userOpt = usersRepository.findByEmail(email);
-        if (userOpt.isEmpty()) {
-            message.setUserMessage("Código inválido");
-            return message;
-        }
+    Optional<UsersEntity> userOpt = usersRepository.findByEmail(email);
 
-        UsersEntity user = userOpt.get();
-
-        if (user.getResetCode() == null || !user.getResetCode().equals(code)) {
-            message.setUserMessage("Código inválido");
-            return message;
-        }
-
-        if (user.getResetCodeExpires().isBefore(LocalDateTime.now())) {
-            message.setUserMessage("El código ha expirado");
-            return message;
-        }
-
-        // Actualiza contraseña y borra el código
-        user.setPassword(passwordEncoder.encode(newPassword));
-        user.setResetCode(null);
-        user.setResetCodeExpires(null);
-        usersRepository.save(user);
-
-        message.setUserMessage("Contraseña actualizada correctamente");
+    if (userOpt.isEmpty()) {
+        message.setUserMessage("Código inválido");
         return message;
     }
+
+    UsersEntity user = userOpt.get();
+
+    if (user.getResetCode() == null || !user.getResetCode().equals(code)) {
+        message.setUserMessage("Código inválido");
+        return message;
+    }
+
+    if (user.getResetCodeExpires() == null
+            || user.getResetCodeExpires().isBefore(LocalDateTime.now())) {
+
+        message.setUserMessage("El código ha expirado");
+        return message;
+    }
+
+    // ===== VALIDACIONES DE CONTRASEÑA =====
+
+    if (newPassword == null || newPassword.length() < 8) {
+        message.setUserMessage("La contraseña debe tener mínimo 8 caracteres");
+        return message;
+    }
+
+    if (!newPassword.matches(".*\\d.*")) {
+        message.setUserMessage("La contraseña debe contener al menos un número");
+        return message;
+    }
+
+    if (!newPassword.matches(".*[!@#$%^&*].*")) {
+        message.setUserMessage("La contraseña debe contener un carácter especial");
+        return message;
+    }
+
+    // ================================
+
+    user.setPassword(passwordEncoder.encode(newPassword));
+    user.setResetCode(null);
+    user.setResetCodeExpires(null);
+
+    usersRepository.save(user);
+
+    message.setUserMessage("Contraseña actualizada correctamente");
+
+    return message;
+}
 
     // Construye el HTML del correo
     private String buildEmailHtml(String code) {
