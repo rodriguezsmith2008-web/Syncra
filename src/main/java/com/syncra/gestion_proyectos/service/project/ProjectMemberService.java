@@ -8,6 +8,8 @@ import com.syncra.gestion_proyectos.dto.project.ProjectMemberResponseDTO;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberId;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
+import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -17,29 +19,28 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectMemberService {
 
-    //Repositorio utilizado para acceder y gestionar la información de los miembros de los proyectos
     private final ProjectMemberRepository memberRepository;
+    private final ProjectRepository projectRepository;
+    private final UsersRepository userRepository;
 
-    /**
-     * Obtiene todos los miembros asociados a un proyecto
-     * @param projectId id del proyecto
-     * @return lista de miembros asociados al proyecto
-     */
     public List<ProjectMemberResponseDTO> getMembers(Long projectId) {
+        if (!projectRepository.existsById(projectId)) {
+            throw new EntityNotFoundException("Proyecto no encontrado");
+        }
         return memberRepository.findByIdProjectId(projectId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-    /**
-     * Agrega un usuario como miembro de un proyecto
-     * @param projectId 
-     * @param userId id del usuario a agregar
-     * @return información del miembro agregado
-     */
     @Transactional
     public ProjectMemberResponseDTO addMember(Long projectId, Long userId) {
+        if (!projectRepository.existsById(projectId)) {
+            throw new EntityNotFoundException("Proyecto no encontrado");
+        }
+        if (!userRepository.existsById(userId)) {
+            throw new EntityNotFoundException("Usuario no encontrado");
+        }
         if (memberRepository.existsByIdProjectIdAndIdUserId(projectId, userId)) {
             throw new IllegalStateException("El usuario ya es miembro del proyecto");
         }
@@ -50,11 +51,6 @@ public class ProjectMemberService {
         return toResponse(memberRepository.save(entity));
     }
 
-    /**
-     * Elimina un miembro de un proyecto
-     * @param projectId 
-     * @param userId
-     */
     @Transactional
     public void removeMember(Long projectId, Long userId) {
         if (!memberRepository.existsByIdProjectIdAndIdUserId(projectId, userId)) {
@@ -63,11 +59,6 @@ public class ProjectMemberService {
         memberRepository.deleteByIdProjectIdAndIdUserId(projectId, userId);
     }
 
-    /**
-     * Convierte una entidad projectmemberentity en un dto de respuesta
-     * @param e entidad que representa la relación entre proyecto y usuario
-     * @return dto con la información del miembro del proyecto
-     */
     private ProjectMemberResponseDTO toResponse(ProjectMemberEntity e) {
         ProjectMemberResponseDTO r = new ProjectMemberResponseDTO();
         r.setProjectId(e.getId().getProjectId());
