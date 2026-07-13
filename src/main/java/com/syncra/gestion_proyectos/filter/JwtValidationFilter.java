@@ -105,6 +105,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                 || path.endsWith("/auth/refresh")
                 || path.endsWith("/auth/forgot-password")
                 || path.endsWith("/auth/verify-code")
-                || path.endsWith("/auth/reset-password");
+                || path.endsWith("/auth/reset-password")
+                || path.endsWith("/contact");
     }
 }
