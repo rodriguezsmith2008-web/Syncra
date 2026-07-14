@@ -9,7 +9,8 @@ import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
 
     /**
-     * Obtiene todas las tareas de un proyecto, ordenadas por columna y posicion
+     * Obtiene todas las tareas de un proyecto, ordenadas por columna y posicion.
+     * Es la consulta que arma el tablero kanban completo.
      *
      * @param projectId
      * @return lista de tareas del proyecto
@@ -17,7 +18,7 @@ public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     List<TaskEntity> findByProjectIdOrderByColumnIdAscPositionAsc(Long projectId);
 
     /**
-     * Obtiene las tareas de una columna especifica, ordenadas por posicion
+     * Obtiene las tareas de una columna especifica, ordenadas por posicion.
      *
      * @param columnId
      * @return lista de tareas de la columna
@@ -25,7 +26,7 @@ public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     List<TaskEntity> findByColumnIdOrderByPositionAsc(Long columnId);
 
     /**
-     * Obtiene las tareas de un sprint especifico
+     * Obtiene las tareas asociadas a un sprint especifico.
      *
      * @param sprintId
      * @return lista de tareas del sprint
@@ -33,12 +34,22 @@ public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     List<TaskEntity> findBySprintId(Long sprintId);
 
     /**
-     * Obtiene las tareas asignadas a un usuario dentro de un proyecto
+     * Obtiene las tareas de un proyecto asignadas a un usuario especifico.
      *
      * @param projectId
      * @param assignedTo
-     * @return lista de tareas asignadas
+     * @return lista de tareas asignadas al usuario
      */
     List<TaskEntity> findByProjectIdAndAssignedTo(Long projectId, Long assignedTo);
 
+    /**
+     * Obtiene las tareas de una columna que estan despues de una posicion dada.
+     * Se usa para reindexar posiciones cuando una tarea se mueve o se elimina,
+     * asi no quedan huecos en el orden de la columna.
+     *
+     * @param columnId
+     * @param position
+     * @return lista de tareas afectadas
+     */
+    List<TaskEntity> findByColumnIdAndPositionGreaterThan(Long columnId, Long position);
 }
