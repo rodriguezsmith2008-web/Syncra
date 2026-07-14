@@ -4,5 +4,5 @@ import lombok.Data;
 
 @Data
 public class UserMessage {
-    private String UserMessage;
+    private String userMessage;
 }

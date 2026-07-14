@@ -5,11 +5,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.syncra.gestion_proyectos.dto.project.ProjectMemberResponseDTO;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.project.ProjectMemberService;
 
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,11 +26,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 @RequiredArgsConstructor
 public class ProjectMemberController {
 
-    //Servicio que se encarga de la logica de negocio de los miembros de los proyectos
+    // Servicio que se encarga de la logica de negocio de los miembros de los
+    // proyectos
     private final ProjectMemberService memberService;
 
     /**
      * Obtiene todos los miembros de un proyecto
+     * 
      * @param projectId id del proyecto
      * @return lista de miembros
      */
@@ -38,26 +43,30 @@ public class ProjectMemberController {
 
     /**
      * Agrega un usuario como miembro de un proyecto
+     * 
      * @param projectId
-     * @param userId id del usuario
+     * @param userId    id del usuario
      * @return miembro agregado
      */
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
     @PostMapping
-    public ResponseEntity<ProjectMemberResponseDTO> addMember(@PathVariable Long projectId, @RequestParam Long userId) {        
+    public ResponseEntity<ProjectMemberResponseDTO> addMember(@PathVariable Long projectId, @RequestParam Long userId) {
         return ResponseEntity.status(HttpStatus.CREATED)
-        .body(memberService.addMember(projectId, userId));
+                .body(memberService.addMember(projectId, userId));
     }
-    
+
     /**
      * Elimina un miembro de un proyecto
+     * 
      * @param projectId
-     * @param userId id del usuario
+     * @param userId    id del usuario
      * @return respuesta sin contenido
      */
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
     @DeleteMapping("/{userId}")
-    public ResponseEntity<Void> removeMember(@PathVariable Long projectId, @PathVariable Long userId) {
+    public ResponseEntity<Map<String, String>> removeMember(@PathVariable Long projectId, @PathVariable Long userId) {
         memberService.removeMember(projectId, userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(Map.of("message", "Miembro eliminado"));
     }
-    
+
 }

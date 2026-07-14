@@ -42,6 +42,7 @@ public class AccessRequestController {
 
     // Trae las solicitudes pendientes
     // solo el administrador las acepta
+    @RequireRole(RoleUserEnum.ADMIN)
     @GetMapping
     public ResponseEntity<AccessMessageDTO<List<AccessResponseDTO>>> findAllPending() {
         return ResponseEntity.ok(accessRequestService.findAllPending());
