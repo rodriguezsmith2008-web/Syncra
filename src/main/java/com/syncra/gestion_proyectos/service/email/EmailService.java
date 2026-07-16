@@ -21,6 +21,7 @@ public class EmailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            helper.setFrom("syncra274@gmail.com");
             helper.setTo(toEmail);
             helper.setSubject("Tu acceso a Syncra ha sido aprobado");
             helper.setText(buildEmailBody(firstName, toEmail, tempPassword), true);
