@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 public class TaskService {
 
     private final TaskRepository repository;
+    private final TaskHistoryService taskHistoryService;
 
     /**
      * Obtiene todas las tareas de un proyecto (tablero kanban completo)
@@ -92,6 +93,7 @@ public class TaskService {
     /**
      * Crea una nueva tarea en una columna del proyecto.
      * Si no se envia posicion, se calcula automaticamente al final de la columna.
+     * Registra el evento en el historial de la tarea.
      *
      * @param projectId
      * @param createdBy id del usuario que crea la tarea
@@ -120,7 +122,9 @@ public class TaskService {
 
         repository.save(entity);
 
-        // Gancho para futuro: registrar en task_history y notificar si hay asignado
+        taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
+
+        // Gancho para futuro: notificar si hay asignado
 
         return toResponse(entity);
     }
@@ -128,29 +132,47 @@ public class TaskService {
     /**
      * Actualiza los datos de una tarea existente.
      * No cambia columna ni posicion, para eso se usa el metodo move.
+     * Si cambia el usuario asignado, registra ese cambio en el historial.
      *
      * @param taskId
+     * @param userId id del usuario que hace la edicion
      * @param dto
      * @return tarea actualizada, null si no existe
      */
     @Transactional
-    public TaskResponseDTO update(Long taskId, TaskRequestDTO dto) {
+    public TaskResponseDTO update(Long taskId, Long userId, TaskRequestDTO dto) {
 
         TaskEntity entity = repository.findById(taskId).orElse(null);
         if (entity == null) {
             return null;
         }
 
-        if (dto.getTitle() != null) entity.setTitle(dto.getTitle());
-        if (dto.getDescription() != null) entity.setDescription(dto.getDescription());
-        if (dto.getColor() != null) entity.setColor(dto.getColor());
-        if (dto.getDueDate() != null) entity.setDueDate(dto.getDueDate());
-        if (dto.getSprintId() != null) entity.setSprintId(dto.getSprintId());
-        if (dto.getAssignedTo() != null) entity.setAssignedTo(dto.getAssignedTo());
+        Long asignadoAnterior = entity.getAssignedTo();
+
+        if (dto.getTitle() != null)
+            entity.setTitle(dto.getTitle());
+        if (dto.getDescription() != null)
+            entity.setDescription(dto.getDescription());
+        if (dto.getColor() != null)
+            entity.setColor(dto.getColor());
+        if (dto.getDueDate() != null)
+            entity.setDueDate(dto.getDueDate());
+        if (dto.getSprintId() != null)
+            entity.setSprintId(dto.getSprintId());
+        if (dto.getAssignedTo() != null)
+            entity.setAssignedTo(dto.getAssignedTo());
 
         repository.save(entity);
 
-        // Gancho para futuro: registrar en task_history si cambio el asignado
+        if (dto.getAssignedTo() != null && !dto.getAssignedTo().equals(asignadoAnterior)) {
+
+            String valorAnterior = asignadoAnterior != null ? asignadoAnterior.toString() : null;
+            String valorNuevo = dto.getAssignedTo().toString();
+
+            taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
+
+            // Gancho para futuro: notificar al nuevo asignado
+        }
 
         return toResponse(entity);
     }
@@ -158,13 +180,15 @@ public class TaskService {
     /**
      * Mueve una tarea a otra columna y/o posicion (drag & drop del tablero).
      * Reindexa la columna de origen para no dejar huecos en el orden.
+     * Registra el movimiento en el historial de la tarea.
      *
      * @param taskId
+     * @param userId id del usuario que mueve la tarea
      * @param dto columna y posicion destino
      * @return tarea movida, null si no existe
      */
     @Transactional
-    public TaskResponseDTO move(Long taskId, TaskMoveDTO dto) {
+    public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
         TaskEntity entity = repository.findById(taskId).orElse(null);
         if (entity == null) {
@@ -179,14 +203,20 @@ public class TaskService {
         repository.save(entity);
 
         if (!columnaAnterior.equals(dto.getColumnId())) {
-            List<TaskEntity> restantes = repository.findByColumnIdAndPositionGreaterThan(columnaAnterior, posicionAnterior);
+
+            List<TaskEntity> restantes = repository.findByColumnIdAndPositionGreaterThan(columnaAnterior,
+                    posicionAnterior);
+
             for (TaskEntity restante : restantes) {
                 restante.setPosition(restante.getPosition() - 1);
                 repository.save(restante);
             }
-        }
 
-        // Gancho para futuro: registrar en task_history y notificar al asignado
+            taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
+                    dto.getColumnId().toString());
+
+            // Gancho para futuro: notificar al asignado del cambio de columna
+        }
 
         return toResponse(entity);
     }
@@ -210,6 +240,7 @@ public class TaskService {
         repository.delete(entity);
 
         List<TaskEntity> restantes = repository.findByColumnIdAndPositionGreaterThan(columnId, posicionEliminada);
+
         for (TaskEntity restante : restantes) {
             restante.setPosition(restante.getPosition() - 1);
             repository.save(restante);
@@ -223,10 +254,13 @@ public class TaskService {
      * @return lista de dtos
      */
     private List<TaskResponseDTO> toResponseList(List<TaskEntity> tasks) {
+
         List<TaskResponseDTO> response = new ArrayList<>();
+
         for (TaskEntity task : tasks) {
             response.add(toResponse(task));
         }
+
         return response;
     }
 
@@ -237,7 +271,9 @@ public class TaskService {
      * @return dto con la informacion de la tarea
      */
     private TaskResponseDTO toResponse(TaskEntity entity) {
+
         TaskResponseDTO dto = new TaskResponseDTO();
+
         dto.setId(entity.getId());
         dto.setProjectId(entity.getProjectId());
         dto.setColumnId(entity.getColumnId());
@@ -251,6 +287,7 @@ public class TaskService {
         dto.setPosition(entity.getPosition());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+
         return dto;
     }
 }

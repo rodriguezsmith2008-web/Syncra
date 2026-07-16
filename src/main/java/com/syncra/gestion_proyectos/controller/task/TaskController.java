@@ -61,7 +61,8 @@ public class TaskController {
      * @return lista de tareas de la columna
      */
     @GetMapping("/column/{columnId}")
-    public ResponseEntity<List<TaskResponseDTO>> getByColumn(@PathVariable Long projectId, @PathVariable Long columnId) {
+    public ResponseEntity<List<TaskResponseDTO>> getByColumn(@PathVariable Long projectId,
+            @PathVariable Long columnId) {
         return ResponseEntity.ok(service.getByColumn(columnId));
     }
 
@@ -73,7 +74,8 @@ public class TaskController {
      * @return lista de tareas del sprint
      */
     @GetMapping("/sprint/{sprintId}")
-    public ResponseEntity<List<TaskResponseDTO>> getBySprint(@PathVariable Long projectId, @PathVariable Long sprintId) {
+    public ResponseEntity<List<TaskResponseDTO>> getBySprint(@PathVariable Long projectId,
+            @PathVariable Long sprintId) {
         return ResponseEntity.ok(service.getBySprint(sprintId));
     }
 
@@ -85,7 +87,8 @@ public class TaskController {
      * @return lista de tareas asignadas al usuario
      */
     @GetMapping("/assigned/{userId}")
-    public ResponseEntity<List<TaskResponseDTO>> getByAssignedUser(@PathVariable Long projectId, @PathVariable Long userId) {
+    public ResponseEntity<List<TaskResponseDTO>> getByAssignedUser(@PathVariable Long projectId,
+            @PathVariable Long userId) {
         return ResponseEntity.ok(service.getByAssignedUser(projectId, userId));
     }
 
@@ -102,7 +105,8 @@ public class TaskController {
     public ResponseEntity<TaskResponseDTO> create(@PathVariable Long projectId, @RequestBody TaskRequestDTO dto,
             HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, userId, dto));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(service.create(projectId, userId, dto));
     }
 
     /**
@@ -111,13 +115,15 @@ public class TaskController {
      * @param projectId
      * @param taskId
      * @param dto
+     * @param request usado para obtener el id del usuario autenticado
      * @return tarea actualizada
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{taskId}")
     public ResponseEntity<TaskResponseDTO> update(@PathVariable Long projectId, @PathVariable Long taskId,
-            @RequestBody TaskRequestDTO dto) {
-        return ResponseEntity.ok(service.update(taskId, dto));
+            @RequestBody TaskRequestDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.update(taskId, userId, dto));
     }
 
     /**
@@ -126,13 +132,15 @@ public class TaskController {
      * @param projectId
      * @param taskId
      * @param dto
+     * @param request usado para obtener el id del usuario autenticado
      * @return tarea movida
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{taskId}/move")
     public ResponseEntity<TaskResponseDTO> move(@PathVariable Long projectId, @PathVariable Long taskId,
-            @RequestBody TaskMoveDTO dto) {
-        return ResponseEntity.ok(service.move(taskId, dto));
+            @RequestBody TaskMoveDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.move(taskId, userId, dto));
     }
 
     /**
