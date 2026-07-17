@@ -10,6 +10,7 @@ import com.syncra.gestion_proyectos.dto.task.TaskRequestDTO;
 import com.syncra.gestion_proyectos.dto.task.TaskResponseDTO;
 import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 import com.syncra.gestion_proyectos.repository.task.TaskRepository;
+import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ public class TaskService {
 
     private final TaskRepository repository;
     private final TaskHistoryService taskHistoryService;
+    private final NotificationService notificationService;
 
     /**
      * Obtiene todas las tareas de un proyecto (tablero kanban completo)
@@ -124,7 +126,10 @@ public class TaskService {
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
-        // Gancho para futuro: notificar si hay asignado
+        if (entity.getAssignedTo() != null) {
+            notificationService.crear(entity.getAssignedTo(), entity.getId(), "TASK_ASSIGNED",
+                    "Se te asigno la tarea: " + entity.getTitle());
+        }
 
         return toResponse(entity);
     }
@@ -171,7 +176,8 @@ public class TaskService {
 
             taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
 
-            // Gancho para futuro: notificar al nuevo asignado
+            notificationService.crear(dto.getAssignedTo(), taskId, "TASK_ASSIGNED",
+                    "Se te asigno la tarea: " + entity.getTitle());
         }
 
         return toResponse(entity);
@@ -215,7 +221,10 @@ public class TaskService {
             taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
                     dto.getColumnId().toString());
 
-            // Gancho para futuro: notificar al asignado del cambio de columna
+            if (entity.getAssignedTo() != null) {
+                notificationService.crear(entity.getAssignedTo(), taskId, "TASK_MOVED",
+                        "La tarea '" + entity.getTitle() + "' cambio de columna");
+            }
         }
 
         return toResponse(entity);
