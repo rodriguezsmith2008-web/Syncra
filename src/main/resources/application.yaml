@@ -44,3 +44,6 @@ security:
   jwt:
     secret-key: ${JWT_SECRET}
     token-expiration: ${JWT_EXPIRATION:600000}
+
+cloudinary:
+  url: ${CLOUDINARY_URL}
