@@ -12,6 +12,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
@@ -20,6 +21,7 @@ import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -72,7 +74,6 @@ public class DocumentService {
 
     /**
      * Crea un nuevo documento en un proyecto
-     * Si se envía templateId, el documento se crea asociado a esa plantilla
      *
      * @param projectId
      * @param dto
@@ -150,7 +151,6 @@ public class DocumentService {
 
     /**
      * Elimina un documento marcándolo con la fecha de eliminación
-     * El documento no se borra de la BD
      *
      * @param id
      * @return mensaje de respuesta
@@ -195,11 +195,10 @@ public class DocumentService {
 
     /**
      * Agrega un comentario a un documento
-     * Valida que el contenido no venga vacío
      *
      * @param documentId
      * @param dto
-     * @param userId id del usuario que comenta
+     * @param userId     id del usuario que comenta
      * @return mensaje de respuesta
      */
     public DocumentMessage addComment(Long documentId, DocumentCommentRequestDTO dto, Long userId) {
@@ -230,17 +229,17 @@ public class DocumentService {
         return message;
     }
 
-
     /**
      * Busca documentos activos de un proyecto por título
      *
      * @param projectId
-     * @param title texto a buscar en el título
+     * @param title     texto a buscar en el título
      * @return lista de documentos encontrados
      */
     public List<DocumentResponseDTO> searchByTitle(Long projectId, String title) {
 
-        List<DocumentEntity> documentList = documentRepository.findByProjectIdAndTitleContainingIgnoreCaseAndDeletedAtIsNull(projectId, title);
+        List<DocumentEntity> documentList = documentRepository
+                .findByProjectIdAndTitleContainingIgnoreCaseAndDeletedAtIsNull(projectId, title);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
@@ -291,5 +290,28 @@ public class DocumentService {
         response.setCreatedAt(commentEntity.getCreatedAt());
 
         return response;
+    }
+
+    /**
+     * Aprueba o rechaza un documento
+
+     *
+     * @param documentId
+     * @param dto        estado nuevo 
+     * @return documento actualizado, null si no existe
+     */
+    @Transactional
+    public DocumentResponseDTO updateStatus(Long documentId, DocumentStatusUpdateDTO dto) {
+
+        DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
+
+        if (entity == null) {
+            return null;
+        }
+
+        entity.setStatus(dto.getStatus());
+        documentRepository.save(entity);
+
+        return toResponse(entity);
     }
 }
