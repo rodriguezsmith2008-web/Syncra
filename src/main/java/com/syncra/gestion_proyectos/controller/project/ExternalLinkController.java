@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.syncra.gestion_proyectos.dto.project.ExternalLinkRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ExternalLinkResponseDTO;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.project.ExternalLinkService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -62,6 +64,7 @@ public class ExternalLinkController {
      * @param request
      * @return enlace creado
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @PostMapping
     public ResponseEntity<ExternalLinkResponseDTO> create(
             @PathVariable Long projectId,
@@ -80,6 +83,7 @@ public class ExternalLinkController {
      * @param dto
      * @return enlace actualizado
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> update(
             @PathVariable Long projectId,
@@ -95,6 +99,7 @@ public class ExternalLinkController {
      * @param linkId
      * @return respuesta sin contenido
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{linkId}")
     public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long linkId) {
         linkService.delete(projectId, linkId);

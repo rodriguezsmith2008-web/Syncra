@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequestMapping("/projects/{projectId}/members")
@@ -67,6 +68,21 @@ public class ProjectMemberController {
     public ResponseEntity<Map<String, String>> removeMember(@PathVariable Long projectId, @PathVariable Long userId) {
         memberService.removeMember(projectId, userId);
         return ResponseEntity.ok(Map.of("message", "Miembro eliminado"));
+    }
+
+      /**
+     * Cambia a un usuario de este proyecto a otro
+     *
+     * @param projectId  proyecto actual del usuario
+     * @param userId
+     * @param newProjectId proyecto destino
+     * @return miembro agregado al nuevo proyecto
+     */
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PutMapping("/{userId}/move")
+    public ResponseEntity<ProjectMemberResponseDTO> moveMember(@PathVariable Long projectId,
+            @PathVariable Long userId, @RequestParam Long newProjectId) {
+        return ResponseEntity.ok(memberService.moveMember(projectId, newProjectId, userId));
     }
 
 }
