@@ -19,7 +19,10 @@ import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.document.DocumentService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,7 +59,7 @@ public class DocumentController {
     }
 
     /**
-     * Crea un nuevo documento en un proyecto (HU26, HU27)
+     * Crea un nuevo documento en un proyecto 
      *
      * @param projectId
      * @param dto
@@ -86,7 +89,7 @@ public class DocumentController {
     }
 
     /**
-     * Actualiza el título o contenido de un documento (HU28)
+     * Actualiza el título o contenido de un documento 
      *
      * @param id
      * @param dto
@@ -101,7 +104,7 @@ public class DocumentController {
     }
 
     /**
-     * Elimina un documento (soft delete) (HU30)
+     * Elimina un documento 
      *
      * @param id
      * @return mensaje de respuesta
@@ -123,7 +126,7 @@ public class DocumentController {
     }
 
     /**
-     * Agrega un comentario a un documento (HU29)
+     * Agrega un comentario a un documento
      *
      * @param id
      * @param dto
@@ -137,4 +140,18 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(documentService.addComment(id, dto, userId));
     }
+
+    /**
+ * Aprueba o rechaza un documento solo instructor
+ *
+ * @param documentId
+ * @param dto
+ * @return documento actualizado
+ */
+@RequireRole(RoleUserEnum.INSTRUCTOR)
+@PutMapping("/{documentId}/status")
+public ResponseEntity<DocumentResponseDTO> updateStatus(@PathVariable Long documentId,
+        @RequestBody DocumentStatusUpdateDTO dto) {
+    return ResponseEntity.ok(documentService.updateStatus(documentId, dto));
+}
 }

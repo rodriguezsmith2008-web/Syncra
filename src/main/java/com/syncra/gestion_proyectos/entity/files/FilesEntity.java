@@ -1,4 +1,4 @@
-package com.syncra.gestion_proyectos.entity.document;
+package com.syncra.gestion_proyectos.entity.files;
 
 import com.syncra.gestion_proyectos.enums.FilesTypeEnum;
 
