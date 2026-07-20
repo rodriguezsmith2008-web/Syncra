@@ -65,4 +65,40 @@ public class ProjectMemberService {
         r.setUserId(e.getId().getUserId());
         return r;
     }
+
+    /**
+     * Cambia a un usuario de un proyecto a otro
+     *
+     * @param currentProjectId proyecto del que se saca al usuario
+     * @param newProjectId     proyecto al que se agrega el usuario
+     * @param userId
+     * @return miembro agregado al nuevo proyecto
+     */
+    @Transactional
+    public ProjectMemberResponseDTO moveMember(Long currentProjectId, Long newProjectId, Long userId) {
+
+        if (!memberRepository.existsByIdProjectIdAndIdUserId(currentProjectId, userId)) {
+            throw new EntityNotFoundException("El usuario no es miembro del proyecto actual");
+        }
+        if (!projectRepository.existsById(newProjectId)) {
+            throw new EntityNotFoundException("Proyecto destino no encontrado");
+        }
+        if (memberRepository.existsByIdProjectIdAndIdUserId(newProjectId, userId)) {
+            throw new IllegalStateException("El usuario ya es miembro del proyecto destino");
+        }
+
+        memberRepository.deleteByIdProjectIdAndIdUserId(currentProjectId, userId);
+
+        ProjectMemberEntity entity = new ProjectMemberEntity();
+        entity.setId(new ProjectMemberId(newProjectId, userId));
+
+        ProjectMemberEntity saved = memberRepository.save(entity);
+
+        ProjectMemberResponseDTO dto = new ProjectMemberResponseDTO();
+        dto.setProjectId(saved.getId().getProjectId());
+        dto.setUserId(saved.getId().getUserId());
+
+        return dto;
+
+    }
 }
