@@ -20,6 +20,8 @@ import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
+import java.io.ByteArrayOutputStream;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -294,10 +296,10 @@ public class DocumentService {
 
     /**
      * Aprueba o rechaza un documento
-
      *
+     * 
      * @param documentId
-     * @param dto        estado nuevo 
+     * @param dto        estado nuevo
      * @return documento actualizado, null si no existe
      */
     @Transactional
@@ -313,5 +315,49 @@ public class DocumentService {
         documentRepository.save(entity);
 
         return toResponse(entity);
+    }
+    /**
+     * Genera el PDF de un documento a partir de su contenido HTML
+     *
+     * @param id
+     * @return bytes del PDF, null si el documento no existe
+     */
+    public byte[] generatePdf(Long id) throws Exception {
+
+        Optional<DocumentEntity> documentFound = documentRepository.findByIdAndDeletedAtIsNull(id);
+
+        if (documentFound.isEmpty()) {
+            return null;
+        }
+
+        DocumentEntity document = documentFound.get();
+
+        String html = """
+                <html>
+                <head>
+                    <meta charset="UTF-8" />
+                    <style>
+                        body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; }
+                        h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+                        table { border-collapse: collapse; width: 100%%; }
+                        td, th { border: 1px solid #ccc; padding: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>%s</h1>
+                    %s
+                </body>
+                </html>
+                """.formatted(document.getTitle(), document.getContent());
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+        PdfRendererBuilder builder = new PdfRendererBuilder();
+        builder.useFastMode();
+        builder.withHtmlContent(html, null);
+        builder.toStream(outputStream);
+        builder.run();
+
+        return outputStream.toByteArray();
     }
 }

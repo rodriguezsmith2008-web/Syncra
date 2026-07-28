@@ -115,6 +115,13 @@
 			<artifactId>dotenv-java</artifactId>
 			<version>2.2.4</version>
 		</dependency>
+
+		<!-- Para descargar los docuemntos convirtiendo de html a pdf -->
+		<dependency>
+			<groupId>com.openhtmltopdf</groupId>
+			<artifactId>openhtmltopdf-pdfbox</artifactId>
+			<version>1.0.10</version>
+		</dependency>
 	</dependencies>
 
 
