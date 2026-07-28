@@ -24,6 +24,8 @@ import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.document.DocumentService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +61,7 @@ public class DocumentController {
     }
 
     /**
-     * Crea un nuevo documento en un proyecto 
+     * Crea un nuevo documento en un proyecto
      *
      * @param projectId
      * @param dto
@@ -89,7 +91,7 @@ public class DocumentController {
     }
 
     /**
-     * Actualiza el título o contenido de un documento 
+     * Actualiza el título o contenido de un documento
      *
      * @param id
      * @param dto
@@ -104,7 +106,7 @@ public class DocumentController {
     }
 
     /**
-     * Elimina un documento 
+     * Elimina un documento
      *
      * @param id
      * @return mensaje de respuesta
@@ -142,16 +144,38 @@ public class DocumentController {
     }
 
     /**
- * Aprueba o rechaza un documento solo instructor
- *
- * @param documentId
- * @param dto
- * @return documento actualizado
- */
-@RequireRole(RoleUserEnum.INSTRUCTOR)
-@PutMapping("/{documentId}/status")
-public ResponseEntity<DocumentResponseDTO> updateStatus(@PathVariable Long documentId,
-        @RequestBody DocumentStatusUpdateDTO dto) {
-    return ResponseEntity.ok(documentService.updateStatus(documentId, dto));
-}
+     * Aprueba o rechaza un documento solo instructor
+     *
+     * @param documentId
+     * @param dto
+     * @return documento actualizado
+     */
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PutMapping("/{documentId}/status")
+    public ResponseEntity<DocumentResponseDTO> updateStatus(@PathVariable Long documentId,
+            @RequestBody DocumentStatusUpdateDTO dto) {
+        return ResponseEntity.ok(documentService.updateStatus(documentId, dto));
+    }
+
+    /**
+     * Descarga un documento como PDF
+     *
+     * @param id
+     * @return archivo PDF
+     */
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable Long id) throws Exception {
+
+        byte[] pdfBytes = documentService.generatePdf(id);
+
+        if (pdfBytes == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "documento.pdf");
+
+        return ResponseEntity.ok().headers(headers).body(pdfBytes);
+    }
 }
