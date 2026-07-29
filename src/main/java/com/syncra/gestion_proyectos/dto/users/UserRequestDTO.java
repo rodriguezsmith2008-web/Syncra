@@ -21,4 +21,6 @@ public class UserRequestDTO {
 
     private String avatarUrl;
 
+    private String status;
+
 }

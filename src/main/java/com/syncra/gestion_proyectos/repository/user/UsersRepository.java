@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.enums.UserStatusEnum;
 
 public interface UsersRepository extends JpaRepository<UsersEntity, Long> {
 
@@ -61,4 +62,6 @@ public interface UsersRepository extends JpaRepository<UsersEntity, Long> {
      * @return lista de usuarios con ese rol
      */
     List<UsersEntity> findByRole(RoleUserEnum role);
+
+    List<UsersEntity> findByStatus(UserStatusEnum status);
 }
