@@ -63,6 +63,12 @@ public class ProjectMemberService {
         ProjectMemberResponseDTO r = new ProjectMemberResponseDTO();
         r.setProjectId(e.getId().getProjectId());
         r.setUserId(e.getId().getUserId());
+
+        userRepository.findById(e.getId().getUserId()).ifPresent(user -> {
+            r.setFirstName(user.getFirstName());
+            r.setLastName(user.getLastName());
+        });
+
         return r;
     }
 

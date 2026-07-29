@@ -52,4 +52,8 @@ public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
      * @return lista de tareas afectadas
      */
     List<TaskEntity> findByColumnIdAndPositionGreaterThan(Long columnId, Long position);
+
+    List<TaskEntity> findByColumnIdAndPositionGreaterThanEqual(Long columnId, Long position);
+
+    List<TaskEntity> findByColumnIdAndPositionBetween(Long columnId, Long start, Long end);
 }
