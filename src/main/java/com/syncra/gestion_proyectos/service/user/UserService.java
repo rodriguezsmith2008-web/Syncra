@@ -120,16 +120,41 @@ public class UserService {
         user.setGroupName(request.getGroupName());
         user.setAvatarUrl(request.getAvatarUrl());
 
+        // ==============================
+        // Rol
+        // ==============================
         if (request.getRole() != null) {
+
             try {
+
                 user.setRole(RoleUserEnum.valueOf(request.getRole().toUpperCase()));
+
             } catch (IllegalArgumentException e) {
+
                 response.setUserMessage("Rol inválido: " + request.getRole());
                 return response;
+
             }
+
         }
 
-        user.setStatus(UserStatusEnum.IN_TRAINING);
+        // ==============================
+        // Estado
+        // ==============================
+        if (request.getStatus() != null) {
+
+            try {
+
+                user.setStatus(UserStatusEnum.valueOf(request.getStatus().toUpperCase()));
+
+            } catch (IllegalArgumentException e) {
+
+                response.setUserMessage("Estado inválido: " + request.getStatus());
+                return response;
+
+            }
+
+        }
 
         usersRepository.save(user);
 
@@ -159,11 +184,16 @@ public class UserService {
 
         UsersEntity user = userFound.get();
 
-        if (request.getFirstName() != null)      user.setFirstName(request.getFirstName());
-        if (request.getLastName() != null)       user.setLastName(request.getLastName());
-        if (request.getDocumentNumber() != null) user.setDocumentNumber(request.getDocumentNumber());
-        if (request.getGroupName() != null)      user.setGroupName(request.getGroupName());
-        if (request.getAvatarUrl() != null)      user.setAvatarUrl(request.getAvatarUrl());
+        if (request.getFirstName() != null)
+            user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null)
+            user.setLastName(request.getLastName());
+        if (request.getDocumentNumber() != null)
+            user.setDocumentNumber(request.getDocumentNumber());
+        if (request.getGroupName() != null)
+            user.setGroupName(request.getGroupName());
+        if (request.getAvatarUrl() != null)
+            user.setAvatarUrl(request.getAvatarUrl());
 
         if (request.getStatus() != null) {
             UserStatusEnum newStatus = null;
