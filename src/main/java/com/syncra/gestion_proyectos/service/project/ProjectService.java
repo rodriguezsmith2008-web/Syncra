@@ -10,6 +10,7 @@ import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
+import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -21,6 +22,7 @@ public class ProjectService {
 
     //Repositorio utilizado para acceder y gestionar la información de los proyectos almacenados en la base de datos
     private final ProjectRepository projectRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
     /**
      * Obtiene todos los proyectos registrados en el sistema
@@ -127,5 +129,20 @@ public class ProjectService {
         r.setCreatedBy(e.getCreatedBy());
         r.setCreatedAt(e.getCreatedAt());
         return r;
+    }
+
+    /**
+     * Obtiene los proyectos en los que el usuario autenticado es miembro
+     * @param userId id del usuario autenticado (viene del token JWT)
+     * @return lista de proyectos del usuario
+     */
+    public List<ProjectResponseDTO> getMine(Long userId) {
+        return projectMemberRepository.findByIdUserId(userId)
+                .stream()
+                .map(member -> projectRepository.findById(member.getId().getProjectId()))
+                .filter(java.util.Optional::isPresent)
+                .map(java.util.Optional::get)
+                .map(this::toResponse)
+                .toList();
     }
 }

@@ -67,7 +67,7 @@ public class DocumentController {
      * @return mensaje de respuesta
      */
     @PostMapping
-    public ResponseEntity<DocumentMessage> create(@PathVariable Long projectId, @RequestBody DocumentRequestDTO dto,
+    public ResponseEntity<DocumentResponseDTO> create(@PathVariable Long projectId, @RequestBody DocumentRequestDTO dto,
             HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return ResponseEntity.status(HttpStatus.CREATED)

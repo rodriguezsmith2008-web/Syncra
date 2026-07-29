@@ -116,4 +116,15 @@ public class ProjectController {
         projectService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Obtiene los proyectos del usuario autenticado
+     *
+     * @return lista de proyectos donde el usuario es miembro
+     */
+    @GetMapping("/mine")
+    public ResponseEntity<List<ProjectResponseDTO>> getMine(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(projectService.getMine(userId));
+    }
 }

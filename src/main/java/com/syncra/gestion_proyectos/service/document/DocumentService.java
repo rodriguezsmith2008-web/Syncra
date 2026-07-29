@@ -80,13 +80,10 @@ public class DocumentService {
      * @param createdBy id del usuario que crea el documento
      * @return mensaje de respuesta
      */
-    public DocumentMessage create(Long projectId, DocumentRequestDTO dto, Long createdBy) {
-
-        DocumentMessage message = new DocumentMessage();
+    public DocumentResponseDTO create(Long projectId, DocumentRequestDTO dto, Long createdBy) {
 
         if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
-            message.setMessage("El título del documento es obligatorio.");
-            return message;
+            throw new IllegalArgumentException("El título del documento es obligatorio.");
         }
 
         DocumentEntity newDocument = new DocumentEntity();
@@ -106,10 +103,9 @@ public class DocumentService {
             }
         }
 
-        documentRepository.save(newDocument);
+        DocumentEntity saved = documentRepository.save(newDocument);
 
-        message.setMessage("Documento creado correctamente.");
-        return message;
+        return toResponse(saved);
     }
 
     /**
