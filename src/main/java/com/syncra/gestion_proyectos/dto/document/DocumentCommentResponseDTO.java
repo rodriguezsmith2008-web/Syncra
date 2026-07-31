@@ -13,4 +13,11 @@ public class DocumentCommentResponseDTO {
     private Long userId;
     private String content;
     private LocalDateTime createdAt;
+
+    // Datos del usuario que comentó
+    private String userFullName;
+    private String userAvatarUrl;
+
+    // Tiempo formateado: "hace 5 minutos" o "15 jun 2025" si pasaron +24h
+    private String timeDisplay;
 }

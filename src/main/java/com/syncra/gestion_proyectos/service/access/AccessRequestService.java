@@ -1,5 +1,6 @@
 package com.syncra.gestion_proyectos.service.access;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -137,7 +138,7 @@ public class AccessRequestService {
         AccessRequestEntity request = requestO.get();
 
         if (!request.getStatus().equals(AccessStatusEnum.PENDING)) {
-            message.setMessage("La solicitud ya fue aprovada");
+            message.setMessage("La solicitud ya fue aprobada");
             return message;
         }
 
@@ -152,8 +153,13 @@ public class AccessRequestService {
             return message;
         }
 
-        // se incripta la contraseña y se genera automaticamente una al ser aceptado
+        // Contraseña temporal generada con el documento del usuario
         String tempPassword = "Syncra_" + request.getDocumentNumber();
+
+        // Estado según rol: INSTRUCTOR → ACTIVE, APPRENTICE → IN_TRAINING
+        UserStatusEnum status = request.getRole() == RoleUserEnum.INSTRUCTOR
+                ? UserStatusEnum.ACTIVE
+                : UserStatusEnum.IN_TRAINING;
 
         UsersEntity newUser = new UsersEntity();
         newUser.setFirstName(request.getFirstName());
@@ -162,10 +168,13 @@ public class AccessRequestService {
         newUser.setDocumentNumber(request.getDocumentNumber());
         newUser.setGroupName(request.getGroupName());
         newUser.setRole(request.getRole());
-
-        
         newUser.setPassword(passwordEncoder.encode(tempPassword));
-        newUser.setStatus(UserStatusEnum.IN_TRAINING);
+        newUser.setStatus(status);
+
+        // El usuario debe cambiar su contraseña en el primer inicio de sesión
+        // Si no lo hace en 24 horas, la cuenta queda invalidada
+        newUser.setMustChangePassword(true);
+        newUser.setTempPasswordExpiresAt(LocalDateTime.now().plusHours(24));
 
         usersRepository.save(newUser);
 

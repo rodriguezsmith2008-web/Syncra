@@ -12,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Data;
 
@@ -46,7 +47,8 @@ public class UsersEntity {
     @Column(name = "group_name", length = 20)
     private String groupName;
 
-    @Column(name = "avatar_url", length = 500)
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
@@ -54,10 +56,17 @@ public class UsersEntity {
     private UserStatusEnum status = UserStatusEnum.IN_TRAINING;
 
     @Column(name = "reset_token", length = 100)
-     private String resetCode;
+    private String resetCode;
 
     @Column(name = "reset_token_expires")
-   
     private LocalDateTime resetCodeExpires;
+
+    // Fecha en que se creó la contraseña temporal (para saber si pasaron 24h)
+    @Column(name = "temp_password_expires_at")
+    private LocalDateTime tempPasswordExpiresAt;
+
+    // Indica si el usuario debe cambiar la contraseña en el próximo login
+    @Column(name = "must_change_password")
+    private Boolean mustChangePassword = false;
 
 }

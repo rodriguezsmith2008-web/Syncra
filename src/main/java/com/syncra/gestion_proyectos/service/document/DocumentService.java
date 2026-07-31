@@ -1,5 +1,6 @@
 package com.syncra.gestion_proyectos.service.document;
 
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
+
+    private final UsersRepository usersRepository;
 
     /** Repositorio de documentos */
     private final DocumentRepository documentRepository;
@@ -287,7 +290,35 @@ public class DocumentService {
         response.setContent(commentEntity.getContent());
         response.setCreatedAt(commentEntity.getCreatedAt());
 
+        // Traer nombre y avatar del usuario que comentó
+        usersRepository.findById(commentEntity.getUserId()).ifPresent(user -> {
+            response.setUserFullName(user.getFirstName() + " " + user.getLastName());
+            response.setUserAvatarUrl(user.getAvatarUrl());
+        });
+
+        // Calcular tiempo de visualización
+        response.setTimeDisplay(calcularTimeDisplay(commentEntity.getCreatedAt()));
+
         return response;
+    }
+
+    private String calcularTimeDisplay(LocalDateTime createdAt) {
+        LocalDateTime ahora = LocalDateTime.now();
+        long horas = java.time.Duration.between(createdAt, ahora).toHours();
+        long minutos = java.time.Duration.between(createdAt, ahora).toMinutes();
+
+        if (horas >= 24) {
+
+            return createdAt.format(
+                    java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy",
+                            java.util.Locale.of("es", "CO")));
+        } else if (horas >= 1) {
+            return "hace " + horas + (horas == 1 ? " hora" : " horas");
+        } else if (minutos >= 1) {
+            return "hace " + minutos + (minutos == 1 ? " minuto" : " minutos");
+        } else {
+            return "justo ahora";
+        }
     }
 
     /**
@@ -328,7 +359,23 @@ public class DocumentService {
 
         DocumentEntity document = documentFound.get();
 
+        String contenido = document.getContent()
+                .replace("&oacute;", "ó")
+                .replace("&aacute;", "á")
+                .replace("&eacute;", "é")
+                .replace("&iacute;", "í")
+                .replace("&uacute;", "ú")
+                .replace("&ntilde;", "ñ")
+                .replace("&Aacute;", "Á")
+                .replace("&Eacute;", "É")
+                .replace("&Iacute;", "Í")
+                .replace("&Oacute;", "Ó")
+                .replace("&Uacute;", "Ú")
+                .replace("&Ntilde;", "Ñ")
+                .replace("&nbsp;", " ");
+
         String html = """
+                <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="UTF-8" />
@@ -344,7 +391,7 @@ public class DocumentService {
                     %s
                 </body>
                 </html>
-                """.formatted(document.getTitle(), document.getContent());
+                """.formatted(document.getTitle(), contenido);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
