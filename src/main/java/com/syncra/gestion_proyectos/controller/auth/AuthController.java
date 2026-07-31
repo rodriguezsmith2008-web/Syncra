@@ -18,7 +18,9 @@ import com.syncra.gestion_proyectos.service.email.PasswordResetService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/auth")
@@ -78,8 +80,7 @@ public class AuthController {
 
         } catch (Exception e) {
 
-            e.printStackTrace();
-
+            log.error("Error en login: {}", e.getMessage(), e); 
             return ResponseEntity
                     .status(HttpStatus.BAD_REQUEST)
                     .body(null);
@@ -107,8 +108,7 @@ public class AuthController {
 
         try {
 
-            HttpGlobalResponse<String> response =
-                    authService.refreshToken(token);
+            HttpGlobalResponse<String> response = authService.refreshToken(token);
 
             return ResponseEntity
                     .status(HttpStatus.ACCEPTED)
@@ -135,8 +135,7 @@ public class AuthController {
 
         try {
 
-            UserMessage response =
-                    passwordResetService.sendCode(request.getEmail());
+            UserMessage response = passwordResetService.sendCode(request.getEmail());
 
             return ResponseEntity.ok(response);
 

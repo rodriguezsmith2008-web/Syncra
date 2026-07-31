@@ -90,7 +90,6 @@ public class AuthService {
         Optional<UsersEntity> userFound = usersRepository.findByEmail(request.getEmail());
 
         if (userFound.isEmpty()) {
-
             response.setMessage("Este usuario no se encuentra registrado");
             return response;
         }
@@ -98,24 +97,47 @@ public class AuthService {
         UsersEntity user = userFound.get();
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-
             response.setMessage("Correo o contraseña incorrectos");
             return response;
         }
 
-        // Validar que la cuenta esté activa
+        // Validar que la cuenta no esté retirada
         if (user.getStatus() == UserStatusEnum.WITHDRAWN) {
             response.setMessage("Tu cuenta ha sido retirada. Contacta al administrador");
             return response;
         }
+
+        // Validar si la contraseña temporal expiró (pasaron más de 24h sin iniciar
+        // sesión)
+        if (Boolean.TRUE.equals(user.getMustChangePassword())
+                && user.getTempPasswordExpiresAt() != null
+                && java.time.LocalDateTime.now().isAfter(user.getTempPasswordExpiresAt())) {
+
+            
+            user.setStatus(UserStatusEnum.WITHDRAWN);
+            // Genera una contraseña aleatoria encriptada que nadie podrá usar
+            user.setPassword(passwordEncoder.encode(java.util.UUID.randomUUID().toString()));
+            usersRepository.save(user);
+            usersRepository.save(user);
+
+            response.setMessage("Tu contraseña temporal expiró. Contacta al administrador para reactivar tu cuenta");
+            return response;
+        }
+
         String jwt = jwtService.generarToken(
                 user.getId(),
                 user.getEmail(),
                 user.getRole().name());
 
-        response.setMessage("Inicio de sesión exitoso");
-        response.setData(jwt);
+        // Si debe cambiar la contraseña, avisarle en la respuesta
+        if (Boolean.TRUE.equals(user.getMustChangePassword())) {
+            response.setMessage("Inicio de sesión exitoso. Debes cambiar tu contraseña");
+            response.setMustChangePassword(true);
+        } else {
+            response.setMessage("Inicio de sesión exitoso");
+        }
 
+        response.setData(jwt);
         return response;
     }
 

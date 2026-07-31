@@ -257,15 +257,24 @@ public class UserService {
         Optional<UsersEntity> userFound = usersRepository.findById(id);
 
         if (userFound.isEmpty()) {
-
             response.setUserMessage("Usuario no encontrado");
             return response;
         }
 
-        usersRepository.deleteById(id);
+        UsersEntity user = userFound.get();
 
-        response.setUserMessage("Usuario eliminado correctamente");
+        // Validar que no sea el último admin
+        if (user.getRole() == RoleUserEnum.ADMIN
+                && usersRepository.findByRole(RoleUserEnum.ADMIN).size() <= 1) {
+            response.setUserMessage("No se puede eliminar el único administrador del sistema");
+            return response;
+        }
 
+        // Eliminación lógica: cambia el estado en vez de borrar de la BD
+        user.setStatus(UserStatusEnum.WITHDRAWN);
+        usersRepository.save(user);
+
+        response.setUserMessage("Usuario desactivado correctamente");
         return response;
     }
 
@@ -460,6 +469,8 @@ public class UserService {
         }
 
         user.setPassword(passwordEncoder.encode(newPass));
+        user.setMustChangePassword(false);
+        user.setTempPasswordExpiresAt(null);
         usersRepository.save(user);
 
         message.setUserMessage("Contraseña actualizada correctamente");

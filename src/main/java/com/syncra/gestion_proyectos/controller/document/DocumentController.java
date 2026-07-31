@@ -68,6 +68,7 @@ public class DocumentController {
      * @param request
      * @return mensaje de respuesta
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @PostMapping
     public ResponseEntity<DocumentResponseDTO> create(@PathVariable Long projectId, @RequestBody DocumentRequestDTO dto,
             HttpServletRequest request) {
@@ -98,6 +99,7 @@ public class DocumentController {
      * @param request
      * @return mensaje de respuesta
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{id}")
     public ResponseEntity<DocumentMessage> update(@PathVariable Long id, @RequestBody DocumentUpdateDTO dto,
             HttpServletRequest request) {
@@ -111,6 +113,7 @@ public class DocumentController {
      * @param id
      * @return mensaje de respuesta
      */
+    @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{id}")
     public ResponseEntity<DocumentMessage> delete(@PathVariable Long id) {
         return ResponseEntity.ok(documentService.delete(id));

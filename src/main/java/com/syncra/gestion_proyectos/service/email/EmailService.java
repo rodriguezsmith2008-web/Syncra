@@ -36,7 +36,7 @@ public class EmailService {
     private String buildEmailBody(String firstName, String email, String tempPassword) {
         return """
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
-                    <h2 style="color: #4A90D9;">¡Bienvenido/a a Syncra</h2>
+                    <h2 style="color: #4A90D9;">¡Bienvenido/a a Syncra!</h2>
                     <p>Tu solicitud de acceso ha sido <strong>aprobada</strong>.
                     Ya puedes ingresar a la plataforma con las siguientes credenciales:</p>
 
@@ -45,9 +45,13 @@ public class EmailService {
                         <p><strong>🔑 Contraseña temporal:</strong> %s</p>
                     </div>
 
+                    <p style="color: #e67e22; font-weight: bold;">
+                        ⏳ Esta contraseña temporal será válida únicamente durante las próximas <strong>24 horas</strong>.
+                        Si no inicias sesión dentro de ese período, la contraseña será invalidada y deberás recuperarla.
+                    </p>
+
                     <p style="color: #e74c3c;">
-                        ⚠️ Por seguridad, se debe cambiar tu contraseña
-                        después de tu primer inicio de sesión.
+                        ⚠️ Por seguridad, deberás cambiar tu contraseña después de tu primer inicio de sesión.
                     </p>
 
                     <hr style="margin-top: 30px;">
@@ -56,6 +60,7 @@ public class EmailService {
                         Análisis y Desarrollo de Software
                     </p>
                 </div>
-                """.formatted(email, tempPassword); 
+                """
+                .formatted(email, tempPassword);
     }
 }
