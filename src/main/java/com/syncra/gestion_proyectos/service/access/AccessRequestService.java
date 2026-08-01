@@ -36,6 +36,17 @@ public class AccessRequestService {
 
         AccessMessageDTO<String> message = new AccessMessageDTO<>();
 
+            if (request.getFirstName() == null || request.getFirstName().isBlank()
+            || request.getLastName() == null || request.getLastName().isBlank()
+            || request.getEmail() == null || request.getEmail().isBlank()
+            || request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()
+            || request.getGroupName() == null || request.getGroupName().isBlank()
+            || request.getRole() == null) {
+
+        message.setMessage("Todos los campos son obligatorios");
+        return message;
+    }
+
         // valida que no se pueda enviar una peticion con ADMIN
         if (request.getRole() == null || request.getRole() == RoleUserEnum.ADMIN) {
             message.setMessage("Rol no válido, solo se permite INSTRUCTOR o APPRENTICE");

@@ -18,6 +18,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,7 +39,7 @@ public class ProjectController {
      *
      * @return lista de proyectos
      */
-   @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
     @GetMapping
     public ResponseEntity<List<ProjectResponseDTO>> getAll() {
         return ResponseEntity.ok(projectService.getAll());
@@ -51,10 +52,18 @@ public class ProjectController {
      * @return info del proyecto
      */
 
-    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
     @GetMapping("/{id}")
     public ResponseEntity<ProjectResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(projectService.getById(id));
+    }
+
+    @GetMapping("/status/{status}")
+    @PreAuthorize("hasAnyRole('ADMIN','INSTRUCTOR')")
+    public ResponseEntity<List<ProjectResponseDTO>> getByStatus(
+            @PathVariable ProjectStatusEnum status) {
+
+        return ResponseEntity.ok(projectService.getByStatus(status));
     }
 
     /**
@@ -82,7 +91,7 @@ public class ProjectController {
      * @return proyecto actualizado
      */
 
-    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
     @PutMapping("/{id}")
     public ResponseEntity<ProjectResponseDTO> update(@PathVariable Long id, @RequestBody ProjectUpdateDTO dto) {
         return ResponseEntity.ok(projectService.update(id, dto));
@@ -96,7 +105,7 @@ public class ProjectController {
      * @return proyecto actualizado
      */
 
-    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
     @PutMapping("/{id}/status")
     public ResponseEntity<ProjectResponseDTO> updateStatus(@PathVariable Long id,
             @RequestBody ProjectStatusEnum status) {
@@ -110,7 +119,7 @@ public class ProjectController {
      * @return respuesta sin contenido
      */
 
-    @RequireRole({RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR})
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         projectService.delete(id);

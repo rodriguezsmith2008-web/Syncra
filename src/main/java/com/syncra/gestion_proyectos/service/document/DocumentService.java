@@ -377,6 +377,8 @@ public class DocumentService {
 
         contenido = embedImagenesComoBase64(contenido);
 
+        contenido = contenido.replaceAll("<col\\b([^>]*)>", "<col$1/>");
+
         String html = """
                 <!DOCTYPE html>
                 <html>
@@ -400,6 +402,7 @@ public class DocumentService {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
+        System.out.println(html);
         builder.withHtmlContent(html, null);
         builder.toStream(outputStream);
         builder.run();
@@ -430,7 +433,7 @@ public class DocumentService {
                 // Cloudinary permite transformaciones en la URL
                 String urlDescarga = url;
                 if (url.contains("cloudinary.com")) {
-              
+
                     urlDescarga = url.replace("/upload/", "/upload/f_jpg,q_85/");
                 }
 

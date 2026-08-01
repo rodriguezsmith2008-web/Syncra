@@ -20,12 +20,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectService {
 
-    //Repositorio utilizado para acceder y gestionar la información de los proyectos almacenados en la base de datos
+    // Repositorio utilizado para acceder y gestionar la información de los
+    // proyectos almacenados en la base de datos
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
 
     /**
      * Obtiene todos los proyectos registrados en el sistema
+     * 
      * @return lista de proyectos
      */
     public List<ProjectResponseDTO> getAll() {
@@ -37,6 +39,7 @@ public class ProjectService {
 
     /**
      * Obtiene un proyecto a partir de su id
+     * 
      * @param id id del proyecto
      * @return información del proyecto solicitado
      */
@@ -45,8 +48,22 @@ public class ProjectService {
     }
 
     /**
+     * Obtiene todos los proyectos por estado.
+     *
+     * @param status estado del proyecto
+     * @return lista de proyectos con el estado indicado
+     */
+    public List<ProjectResponseDTO> getByStatus(ProjectStatusEnum status) {
+        return projectRepository.findByStatus(status)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /**
      * Crear un nuevo proyecto
-     * @param dto datos necesarios para crear un proyecto
+     * 
+     * @param dto       datos necesarios para crear un proyecto
      * @param createdBy id del usuario creador
      * @return información del proyecto creado
      */
@@ -63,7 +80,8 @@ public class ProjectService {
     }
 
     /**
-     * Actualiza la información de un proyecto existente 
+     * Actualiza la información de un proyecto existente
+     * 
      * @param id
      * @param dto datos a actualizar
      * @return información actualizada del proyecto
@@ -71,18 +89,25 @@ public class ProjectService {
     @Transactional
     public ProjectResponseDTO update(Long id, ProjectUpdateDTO dto) {
         ProjectEntity entity = findOrThrow(id);
-        if (dto.getName() != null)        entity.setName(dto.getName());
-        if (dto.getDescription() != null) entity.setDescription(dto.getDescription());
-        if (dto.getGroupName() != null)   entity.setGroupName(dto.getGroupName());
-        if (dto.getStatus() != null)      entity.setStatus(dto.getStatus());
-        if (dto.getStartDate() != null)   entity.setStartDate(dto.getStartDate());
-        if (dto.getEndDate() != null)     entity.setEndDate(dto.getEndDate());
+        if (dto.getName() != null)
+            entity.setName(dto.getName());
+        if (dto.getDescription() != null)
+            entity.setDescription(dto.getDescription());
+        if (dto.getGroupName() != null)
+            entity.setGroupName(dto.getGroupName());
+        if (dto.getStatus() != null)
+            entity.setStatus(dto.getStatus());
+        if (dto.getStartDate() != null)
+            entity.setStartDate(dto.getStartDate());
+        if (dto.getEndDate() != null)
+            entity.setEndDate(dto.getEndDate());
         return toResponse(projectRepository.save(entity));
     }
 
     /**
      * Elimina un proyecto del sistema
-     * @param id 
+     * 
+     * @param id
      */
     @Transactional
     public void delete(Long id) {
@@ -91,9 +116,10 @@ public class ProjectService {
 
     /**
      * Actualiza el estado de un proyecto
+     * 
      * @param id
      * @param status estado del proyecto
-     * @return información actualizada del proyecto 
+     * @return información actualizada del proyecto
      */
     @Transactional
     public ProjectResponseDTO updateStatus(Long id, ProjectStatusEnum status) {
@@ -104,6 +130,7 @@ public class ProjectService {
 
     /**
      * Busca un proyecto por su id
+     * 
      * @param id
      * @return entidad del proyecto encontrada
      */
@@ -114,8 +141,9 @@ public class ProjectService {
 
     /**
      * Convierte una entidad projectentity en un dto de respuesta
+     * 
      * @param e entidad del proyecto
-     * @return dto con la información del proyecto 
+     * @return dto con la información del proyecto
      */
     private ProjectResponseDTO toResponse(ProjectEntity e) {
         ProjectResponseDTO r = new ProjectResponseDTO();
@@ -133,6 +161,7 @@ public class ProjectService {
 
     /**
      * Obtiene los proyectos en los que el usuario autenticado es miembro
+     * 
      * @param userId id del usuario autenticado (viene del token JWT)
      * @return lista de proyectos del usuario
      */
