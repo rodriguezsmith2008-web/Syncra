@@ -17,6 +17,7 @@ import com.syncra.gestion_proyectos.dto.files.FileResponseDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.files.FileService;
+import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -40,11 +41,35 @@ public class FileController {
     }
 
     /**
+     * Sube una imagen desde el editor de documentos a Cloudinary
+     * y retorna solo la URL para que el editor la inserte como <img src="...">
+     * Esto evita que las imágenes se guarden como Base64 en el contenido
+     * del documento, lo que causaría problemas al generar el PDF
+     *
+     * @param file imagen recibida del editor
+     * @return URL de la imagen en Cloudinary
+     */
+    @PostMapping("/upload-image")
+    public ResponseEntity<Map<String, String>> uploadEditorImage(
+            @PathVariable Long projectId, // ← agregar esto
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            FileResponseDTO uploaded = service.upload(projectId, userId, file);
+            return ResponseEntity.ok(Map.of("url", uploaded.getUrl()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Error al subir imagen: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Sube un archivo a un proyecto (multipart/form-data)
      *
      * @param projectId
      * @param file
-     * @param request usado para obtener el id del usuario autenticado
+     * @param request   usado para obtener el id del usuario autenticado
      * @return archivo creado
      */
     @RequireRole(RoleUserEnum.APPRENTICE)

@@ -343,6 +343,7 @@ public class DocumentService {
 
         return toResponse(entity);
     }
+
     /**
      * Genera el PDF de un documento a partir de su contenido HTML
      *
@@ -352,14 +353,14 @@ public class DocumentService {
     public byte[] generatePdf(Long id) throws Exception {
 
         Optional<DocumentEntity> documentFound = documentRepository.findByIdAndDeletedAtIsNull(id);
-
-        if (documentFound.isEmpty()) {
+        if (documentFound.isEmpty())
             return null;
-        }
 
         DocumentEntity document = documentFound.get();
 
         String contenido = document.getContent()
+                .replaceAll("<img([^>]*[^/])>", "<img$1/>")
+                .replaceAll("<img>", "<img/>")
                 .replace("&oacute;", "ó")
                 .replace("&aacute;", "á")
                 .replace("&eacute;", "é")
@@ -374,6 +375,8 @@ public class DocumentService {
                 .replace("&Ntilde;", "Ñ")
                 .replace("&nbsp;", " ");
 
+        contenido = embedImagenesComoBase64(contenido);
+
         String html = """
                 <!DOCTYPE html>
                 <html>
@@ -382,6 +385,7 @@ public class DocumentService {
                     <style>
                         body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; }
                         h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+                        img { max-width: 100%%; height: auto; }
                         table { border-collapse: collapse; width: 100%%; }
                         td, th { border: 1px solid #ccc; padding: 4px; }
                     </style>
@@ -394,7 +398,6 @@ public class DocumentService {
                 """.formatted(document.getTitle(), contenido);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
         builder.withHtmlContent(html, null);
@@ -402,5 +405,64 @@ public class DocumentService {
         builder.run();
 
         return outputStream.toByteArray();
+    }
+
+    private String embedImagenesComoBase64(String content) {
+        if (content == null)
+            return "";
+
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile("src=[\"']([^\"']+)[\"']");
+        java.util.regex.Matcher matcher = pattern.matcher(content);
+        StringBuffer result = new StringBuffer();
+
+        while (matcher.find()) {
+            String url = matcher.group(1);
+
+            if (!url.startsWith("http")) {
+                matcher.appendReplacement(result,
+                        java.util.regex.Matcher.quoteReplacement(matcher.group(0)));
+                continue;
+            }
+
+            try {
+                // Si es URL de Cloudinary, forzar conversión a JPEG
+                // Cloudinary permite transformaciones en la URL
+                String urlDescarga = url;
+                if (url.contains("cloudinary.com")) {
+              
+                    urlDescarga = url.replace("/upload/", "/upload/f_jpg,q_85/");
+                }
+
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URI(urlDescarga).toURL()
+                        .openConnection();
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.connect();
+
+                byte[] bytes = conn.getInputStream().readAllBytes();
+
+                // Siempre jpeg porque forzamos la conversión en Cloudinary
+                String ext = "jpeg";
+                String contentType = conn.getContentType();
+                if (contentType != null && contentType.contains("png"))
+                    ext = "png";
+
+                String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
+                String dataUrl = "data:image/" + ext + ";base64," + base64;
+
+                matcher.appendReplacement(result,
+                        java.util.regex.Matcher.quoteReplacement("src=\"" + dataUrl + "\""));
+
+            } catch (Exception e) {
+                System.out.println("ERROR descargando imagen: " + url + " - " + e.getMessage());
+                matcher.appendReplacement(result,
+                        java.util.regex.Matcher.quoteReplacement(matcher.group(0)));
+            }
+        }
+
+        matcher.appendTail(result);
+        return result.toString();
     }
 }
