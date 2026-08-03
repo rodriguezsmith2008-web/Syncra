@@ -3,7 +3,9 @@ package com.syncra.gestion_proyectos.controller.user;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.syncra.gestion_proyectos.dto.users.FileUploadResponseDTO;
 import com.syncra.gestion_proyectos.dto.users.UserChangePasswordDTO;
 import com.syncra.gestion_proyectos.dto.users.UserMessage;
 import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
@@ -143,6 +145,24 @@ public class UserController {
     public ResponseEntity<List<UserResponseDTO>> searchUsers(@RequestParam String type, @RequestParam String criterio) {
         try {
             List<UserResponseDTO> response = userService.searchUsers(type, criterio);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    /**
+     * Sube el avatar de un usuario a Cloudinary y devuelve la URL
+     *
+     * @param file imagen del avatar
+     * @return url de la imagen subida
+     */
+    @PostMapping("/upload-avatar")
+    public ResponseEntity<FileUploadResponseDTO> uploadAvatar(
+            @RequestParam("file") MultipartFile file) {
+        try {
+            FileUploadResponseDTO response = userService.uploadAvatar(file);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             e.printStackTrace();
