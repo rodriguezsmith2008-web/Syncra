@@ -12,6 +12,7 @@ import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ProjectService {
     // proyectos almacenados en la base de datos
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final UsersRepository userRepository;
 
     /**
      * Obtiene todos los proyectos registrados en el sistema
@@ -155,8 +157,25 @@ public class ProjectService {
         r.setStartDate(e.getStartDate());
         r.setEndDate(e.getEndDate());
         r.setCreatedBy(e.getCreatedBy());
+        r.setCreatedByName(resolveCreatorName(e.getCreatedBy()));
         r.setCreatedAt(e.getCreatedAt());
         return r;
+    }
+
+    /**
+     * Resuelve el nombre completo del usuario creador a partir de su id
+     *
+     * @param userId id del usuario
+     * @return nombre completo, o "Usuario desconocido" si no se encuentra
+     */
+    private String resolveCreatorName(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+
+        return userRepository.findById(userId)
+                .map(user -> user.getFirstName() + " " + user.getLastName())
+                .orElse("Usuario desconocido");
     }
 
     /**

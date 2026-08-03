@@ -1,12 +1,18 @@
 package com.syncra.gestion_proyectos.service.user;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+import com.syncra.gestion_proyectos.dto.users.FileUploadResponseDTO;
 import com.syncra.gestion_proyectos.dto.users.UserMessage;
 import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
@@ -32,6 +38,8 @@ public class UserService {
      * Encriptador de contraseñas
      */
     private final PasswordEncoder passwordEncoder;
+
+     private final Cloudinary cloudinary;
 
     /**
      * Lista todos los usuarios
@@ -399,6 +407,27 @@ public class UserService {
             dtos.add(dto);
         }
         return dtos;
+    }
+
+   
+
+    /**
+     * Sube el avatar a Cloudinary en la carpeta "avatars"
+     *
+     * @param file imagen enviada desde el front
+     * @return DTO con la url resultante
+     */
+    public FileUploadResponseDTO uploadAvatar(MultipartFile file) throws IOException {
+
+        Map uploadResult = cloudinary.uploader().upload(
+                file.getBytes(),
+                ObjectUtils.asMap(
+                        "folder", "avatars",
+                        "resource_type", "image"));
+
+        String url = (String) uploadResult.get("secure_url");
+
+        return new FileUploadResponseDTO(url);
     }
 
     /**

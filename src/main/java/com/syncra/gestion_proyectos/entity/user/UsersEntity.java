@@ -48,7 +48,7 @@ public class UsersEntity {
     private String groupName;
 
     @Lob
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "LONGTEXT")
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)

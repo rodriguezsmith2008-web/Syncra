@@ -21,6 +21,7 @@ public class ProjectResponseDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private Long createdBy;
+    private String createdByName;
     private LocalDateTime createdAt;
 
 }
