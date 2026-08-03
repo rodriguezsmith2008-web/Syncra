@@ -12,6 +12,7 @@ public class NotificationResponseDTO {
     private Long userId;
     private Long taskId;
     private String type;
+    private Long projectId;
     private String message;
     private Boolean isRead;
     private LocalDateTime createdAt;
