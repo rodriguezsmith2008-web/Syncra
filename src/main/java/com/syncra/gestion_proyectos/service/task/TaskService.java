@@ -127,7 +127,7 @@ public class TaskService {
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
         if (entity.getAssignedTo() != null) {
-            notificationService.crear(entity.getAssignedTo(), entity.getId(), "TASK_ASSIGNED",
+            notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), "TASK_ASSIGNED",
                     "Se te asigno la tarea: " + entity.getTitle());
         }
 
@@ -176,7 +176,7 @@ public class TaskService {
 
             taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
 
-            notificationService.crear(dto.getAssignedTo(), taskId, "TASK_ASSIGNED",
+            notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, "TASK_ASSIGNED",
                     "Se te asigno la tarea: " + entity.getTitle());
         }
 
@@ -190,7 +190,7 @@ public class TaskService {
      *
      * @param taskId
      * @param userId id del usuario que mueve la tarea
-     * @param dto columna y posicion destino
+     * @param dto    columna y posicion destino
      * @return tarea movida, null si no existe
      */
     @Transactional
@@ -231,7 +231,11 @@ public class TaskService {
                     columnaDestino.toString());
 
             if (entity.getAssignedTo() != null) {
-                notificationService.crear(entity.getAssignedTo(), taskId, "TASK_MOVED",
+                notificationService.crear(
+                        entity.getAssignedTo(),
+                        entity.getProjectId(),
+                        taskId,
+                        "TASK_MOVED",
                         "La tarea '" + entity.getTitle() + "' cambio de columna");
             }
 
@@ -260,6 +264,7 @@ public class TaskService {
 
         return toResponse(entity);
     }
+
     /**
      * Elimina una tarea y reindexa las posiciones restantes de su columna
      *

@@ -15,7 +15,7 @@ import lombok.Data;
 @Entity
 @Table(name = "notifications")
 public class NotificationEntity {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,9 +37,12 @@ public class NotificationEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-    
+
+    @Column(name = "project_id")
+    private Long projectId;
+
     @PrePersist
-    public void prePersist(){
+    public void prePersist() {
         this.createdAt = LocalDateTime.now();
     }
 
