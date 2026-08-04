@@ -11,4 +11,5 @@ public class KanbaColumResponseDTO {
     private String name;
     private Long position;
     private String color;
+    private Boolean isFinal;
 }
