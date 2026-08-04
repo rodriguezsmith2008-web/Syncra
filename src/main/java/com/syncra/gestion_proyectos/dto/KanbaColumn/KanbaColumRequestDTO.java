@@ -8,4 +8,5 @@ public class KanbaColumRequestDTO {
     private String name;
     private String color;
     private Long position;
+    private Boolean isFinal;
 }

@@ -29,4 +29,7 @@ public class KanbanColumnEntity {
     @Column(name = "color", length = 20)
     private String color;
 
+    @Column(name = "is_final", nullable = false)
+    private Boolean isFinal = false;
+
 }

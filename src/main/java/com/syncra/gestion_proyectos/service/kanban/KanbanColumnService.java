@@ -101,6 +101,7 @@ public class KanbanColumnService {
         entity.setProjectId(projectId);
         entity.setName(dto.getName());
         entity.setColor(dto.getColor());
+        entity.setIsFinal(dto.getIsFinal() != null ? dto.getIsFinal() : false);
 
         if (dto.getPosition() != null) {
             entity.setPosition(dto.getPosition());
@@ -140,8 +141,10 @@ public class KanbanColumnService {
             entity.setName(dto.getName());
         if (dto.getPosition() != null)
             entity.setPosition(dto.getPosition());
-        if (dto.getColor() != null)
+       if (dto.getColor() != null)
             entity.setColor(dto.getColor());
+        if (dto.getIsFinal() != null)
+            entity.setIsFinal(dto.getIsFinal());
 
         repository.save(entity);
 
@@ -155,7 +158,7 @@ public class KanbanColumnService {
      * Reordena varias columnas de un proyecto a la vez (drag & drop)
      *
      * @param projectId
-     * @param columns lista de columnas con su nueva posicion
+     * @param columns   lista de columnas con su nueva posicion
      */
     @Transactional
     public void reorder(Long projectId, List<KanbaColumResponseDTO> columns) {
@@ -223,6 +226,7 @@ public class KanbanColumnService {
         dto.setPosition(entity.getPosition());
         dto.setColor(entity.getColor());
         dto.setProjectId(entity.getProjectId());
+        dto.setIsFinal(entity.getIsFinal());
 
         return dto;
     }

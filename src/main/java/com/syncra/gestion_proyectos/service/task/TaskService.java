@@ -334,4 +334,14 @@ public class TaskService {
 
         return dto;
     }
+
+    public TaskResponseDTO unassign(Long taskId, Long userId) {
+        TaskEntity entity = repository.findById(taskId).orElse(null);
+        if (entity == null) return null;
+
+        entity.setAssignedTo(null);
+        repository.save(entity);
+
+        return toResponse(entity);
+    }
 }

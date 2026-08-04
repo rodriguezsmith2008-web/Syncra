@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -155,5 +156,14 @@ public class TaskController {
     public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long taskId) {
         service.delete(taskId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{taskId}/unassign")
+    public ResponseEntity<TaskResponseDTO> unassign(
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.unassign(taskId, userId));
     }
 }
