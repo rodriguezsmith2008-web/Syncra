@@ -88,24 +88,28 @@ public class JwtValidationFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
+protected boolean shouldNotFilter(HttpServletRequest request) {
 
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            return true;
-        }
-
-        String path = request.getRequestURI();
-        String method = request.getMethod();
-
-        if (path.endsWith("/access-requests") && method.equals("POST")) {
-            return true;
-        }
-
-        return path.endsWith("/auth/login")
-                || path.endsWith("/auth/refresh")
-                || path.endsWith("/auth/forgot-password")
-                || path.endsWith("/auth/verify-code")
-                || path.endsWith("/auth/reset-password")
-                || path.endsWith("/contact");
+    if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+        return true;
     }
+
+    String path = request.getRequestURI();
+    String method = request.getMethod();
+
+    if (path.contains("/ws")) {
+        return true;
+    }
+
+    if (path.endsWith("/access-requests") && method.equals("POST")) {
+        return true;
+    }
+
+    return path.endsWith("/auth/login")
+            || path.endsWith("/auth/refresh")
+            || path.endsWith("/auth/forgot-password")
+            || path.endsWith("/auth/verify-code")
+            || path.endsWith("/auth/reset-password")
+            || path.endsWith("/contact");
+}
 }
