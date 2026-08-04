@@ -1,12 +1,14 @@
 package com.syncra.gestion_proyectos.service.project;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.project.ProjectMemberResponseDTO;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberId;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
@@ -27,9 +29,20 @@ public class ProjectMemberService {
         if (!projectRepository.existsById(projectId)) {
             throw new EntityNotFoundException("Proyecto no encontrado");
         }
-        return memberRepository.findByIdProjectId(projectId)
+
+        List<ProjectMemberEntity> members = memberRepository.findByIdProjectId(projectId);
+
+        
+        List<Long> userIds = members.stream()
+                .map(m -> m.getId().getUserId())
+                .toList();
+
+        Map<Long, UsersEntity> usersById = userRepository.findAllById(userIds)
                 .stream()
-                .map(this::toResponse)
+                .collect(java.util.stream.Collectors.toMap(UsersEntity::getId, u -> u));
+
+        return members.stream()
+                .map(m -> toResponse(m, usersById.get(m.getId().getUserId())))
                 .toList();
     }
 
@@ -48,7 +61,10 @@ public class ProjectMemberService {
         ProjectMemberEntity entity = new ProjectMemberEntity();
         entity.setId(new ProjectMemberId(projectId, userId));
 
-        return toResponse(memberRepository.save(entity));
+        ProjectMemberEntity saved = memberRepository.save(entity);
+        UsersEntity user = userRepository.findById(userId).orElse(null);
+
+        return toResponse(saved, user);
     }
 
     @Transactional
@@ -59,15 +75,15 @@ public class ProjectMemberService {
         memberRepository.deleteByIdProjectIdAndIdUserId(projectId, userId);
     }
 
-    private ProjectMemberResponseDTO toResponse(ProjectMemberEntity e) {
+    private ProjectMemberResponseDTO toResponse(ProjectMemberEntity e, UsersEntity user) {
         ProjectMemberResponseDTO r = new ProjectMemberResponseDTO();
         r.setProjectId(e.getId().getProjectId());
         r.setUserId(e.getId().getUserId());
 
-        userRepository.findById(e.getId().getUserId()).ifPresent(user -> {
+        if (user != null) {
             r.setFirstName(user.getFirstName());
             r.setLastName(user.getLastName());
-        });
+        }
 
         return r;
     }
@@ -105,6 +121,5 @@ public class ProjectMemberService {
         dto.setUserId(saved.getId().getUserId());
 
         return dto;
-
     }
 }

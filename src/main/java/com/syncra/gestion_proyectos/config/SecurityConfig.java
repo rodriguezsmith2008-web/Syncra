@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -13,18 +14,23 @@ public class SecurityConfig {
 
         http
 
-            // Desactiva CSRF
+            // Desactiva CSRF (no aplica, usan JWT sin sesiones/cookies)
             .csrf(csrf -> csrf.disable())
 
-            // Permite TODAS las requests
+            // Habilita CORS usando el bean CorsFilter definido en CorsConfig
+            .cors(cors -> {})
+
+            // Sin sesiones: cada request se autentica vía JWT
+            .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            // La autorización real la hace JwtValidationFilter (rutas públicas por
+            // path.endsWith()) + @RequireRole por endpoint — no Spring Security aquí
             .authorizeHttpRequests(auth -> auth
                     .anyRequest().permitAll()
             )
 
-            // Desactiva login default
             .formLogin(form -> form.disable())
-
-            // Desactiva basic auth
             .httpBasic(httpBasic -> httpBasic.disable());
 
         return http.build();

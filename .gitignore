@@ -33,4 +33,7 @@ build/
 .vscode/
 
 ### Environment variables ###
+target/
+.git/
 .env
+*.md
