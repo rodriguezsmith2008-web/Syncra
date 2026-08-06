@@ -110,6 +110,7 @@ protected boolean shouldNotFilter(HttpServletRequest request) {
             || path.endsWith("/auth/forgot-password")
             || path.endsWith("/auth/verify-code")
             || path.endsWith("/auth/reset-password")
-            || path.endsWith("/contact");
+            || path.endsWith("/contact")
+            || path.endsWith("/public/stats");
 }
 }
