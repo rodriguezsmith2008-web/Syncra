@@ -34,6 +34,8 @@ build/
 
 ### Environment variables ###
 target/
-.git/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+.idea/
+.vscode/
 .env
-*.md
