@@ -4,7 +4,7 @@ spring:
 
   config:
     import: optional:file:.env[.properties]
-    
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -31,6 +31,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
 
 logging:
   level:
