@@ -6,14 +6,32 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 
 public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> {
 
-    /** Obtiene todos los documentos activos de un proyecto (sin eliminar) */
-    List<DocumentEntity> findByProjectIdAndDeletedAtIsNull(Long projectId);
-
-    /** Busca un documento activo por id */
+    /** Obtiene un documento activo por id */
     Optional<DocumentEntity> findByIdAndDeletedAtIsNull(Long id);
-    /**lista los docuemntos por nombre */
+
+    /** Busca documentos por nombre */
     List<DocumentEntity> findByProjectIdAndTitleContainingIgnoreCaseAndDeletedAtIsNull(Long projectId, String title);
+
+    /** Documentos principales (no subdocumentos) */
+    List<DocumentEntity> findByProjectIdAndDocumentTypeAndParentDocumentIdIsNullAndDeletedAtIsNull(Long projectId,
+            DocumentTypeEnum documentType);
+
+    /** Subdocumentos */
+    List<DocumentEntity> findByParentDocumentIdAndDeletedAtIsNullOrderBySortOrderAsc(Long parentDocumentId);
+
+    /** Actas */
+    List<DocumentEntity> findByProjectIdAndDocumentTypeAndDeletedAtIsNull(Long projectId,
+            DocumentTypeEnum documentType);
+
+    List<DocumentEntity> findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(Long projectId,
+            DocumentTypeEnum documentType, String title);
+
+    List<DocumentEntity> findByParentDocumentIdAndDocumentTypeAndDeletedAtIsNullOrderBySortOrderAsc(
+            Long parentDocumentId,
+            DocumentTypeEnum documentType);
+
 }

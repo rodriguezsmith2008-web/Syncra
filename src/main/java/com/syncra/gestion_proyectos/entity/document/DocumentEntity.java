@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.entity.document;
 import java.time.LocalDateTime;
 
 import com.syncra.gestion_proyectos.enums.DocumentStatusEnum;
+import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,7 +21,7 @@ import lombok.Data;
 @Entity
 @Table(name = "documents")
 public class DocumentEntity {
- 
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -43,7 +44,7 @@ public class DocumentEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
-    
+
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 
@@ -55,6 +56,16 @@ public class DocumentEntity {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "parent_document_id")
+    private Long parentDocumentId;
+
+    @Column(name = "sort_order")
+    private Integer sortOrder = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_type")
+    private DocumentTypeEnum documentType = DocumentTypeEnum.DOCUMENT;
 
     @PrePersist
     public void prePersist() {

@@ -18,6 +18,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
@@ -50,7 +51,10 @@ public class DocumentService {
      */
     public List<DocumentResponseDTO> getByProject(Long projectId) {
 
-        List<DocumentEntity> documentList = documentRepository.findByProjectIdAndDeletedAtIsNull(projectId);
+        List<DocumentEntity> documentList = documentRepository
+                .findByProjectIdAndDocumentTypeAndParentDocumentIdIsNullAndDeletedAtIsNull(
+                        projectId,
+                        DocumentTypeEnum.DOCUMENT);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
@@ -91,21 +95,36 @@ public class DocumentService {
             throw new IllegalArgumentException("El título del documento es obligatorio.");
         }
 
+        if (dto.getDocumentType() == null) {
+            dto.setDocumentType(DocumentTypeEnum.DOCUMENT);
+        }
+
         DocumentEntity newDocument = new DocumentEntity();
 
         newDocument.setProjectId(projectId);
         newDocument.setTitle(dto.getTitle());
-        newDocument.setTemplateId(dto.getTemplateId());
+        newDocument.setParentDocumentId(dto.getParentDocumentId());
+        newDocument.setSortOrder(0);
+        newDocument.setDocumentType(dto.getDocumentType());
         newDocument.setCreatedBy(createdBy);
         newDocument.setUpdatedBy(createdBy);
 
-        if (dto.getTemplateId() != null) {
+        Optional<DocTemplateEntity> templateFound = Optional.empty();
 
-            Optional<DocTemplateEntity> templateFound = docTemplateRepository.findById(dto.getTemplateId());
+        if (dto.getDocumentType() == DocumentTypeEnum.MEETING_MINUTES) {
 
-            if (templateFound.isPresent()) {
-                newDocument.setContent(templateFound.get().getDefaultContent());
-            }
+            templateFound = docTemplateRepository.findByCode("PT-AR-01");
+
+        }
+        else if (dto.getTemplateId() != null) {
+
+            templateFound = docTemplateRepository.findById(dto.getTemplateId());
+
+        }
+
+        if (templateFound.isPresent()) {
+            newDocument.setTemplateId(templateFound.get().getId());
+            newDocument.setContent(templateFound.get().getDefaultContent());
         }
 
         DocumentEntity saved = documentRepository.save(newDocument);
@@ -240,7 +259,10 @@ public class DocumentService {
     public List<DocumentResponseDTO> searchByTitle(Long projectId, String title) {
 
         List<DocumentEntity> documentList = documentRepository
-                .findByProjectIdAndTitleContainingIgnoreCaseAndDeletedAtIsNull(projectId, title);
+                .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(
+                        projectId,
+                        DocumentTypeEnum.DOCUMENT,
+                        title);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
@@ -266,8 +288,11 @@ public class DocumentService {
         response.setTitle(documentEntity.getTitle());
         response.setContent(documentEntity.getContent());
         response.setStatus(documentEntity.getStatus());
+        response.setDocumentType(documentEntity.getDocumentType());
         response.setCreatedBy(documentEntity.getCreatedBy());
         response.setUpdatedBy(documentEntity.getUpdatedBy());
+        response.setParentDocumentId(documentEntity.getParentDocumentId());
+        response.setSortOrder(documentEntity.getSortOrder());
         response.setCreatedAt(documentEntity.getCreatedAt());
         response.setUpdatedAt(documentEntity.getUpdatedAt());
 
@@ -467,5 +492,54 @@ public class DocumentService {
 
         matcher.appendTail(result);
         return result.toString();
+    }
+
+    public List<DocumentResponseDTO> getChildren(Long documentId) {
+
+        List<DocumentEntity> children = documentRepository
+                .findByParentDocumentIdAndDocumentTypeAndDeletedAtIsNullOrderBySortOrderAsc(
+                        documentId,
+                        DocumentTypeEnum.DOCUMENT);
+
+        List<DocumentResponseDTO> response = new ArrayList<>();
+
+        for (DocumentEntity child : children) {
+            response.add(toResponse(child));
+        }
+
+        return response;
+    }
+
+    public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
+
+        List<DocumentEntity> minutes = documentRepository
+                .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
+                        projectId,
+                        DocumentTypeEnum.MEETING_MINUTES);
+
+        List<DocumentResponseDTO> response = new ArrayList<>();
+
+        for (DocumentEntity entity : minutes) {
+            response.add(toResponse(entity));
+        }
+
+        return response;
+    }
+
+    public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
+
+        List<DocumentEntity> minutes = documentRepository
+                .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(
+                        projectId,
+                        DocumentTypeEnum.MEETING_MINUTES,
+                        title);
+
+        List<DocumentResponseDTO> response = new ArrayList<>();
+
+        for (DocumentEntity entity : minutes) {
+            response.add(toResponse(entity));
+        }
+
+        return response;
     }
 }
