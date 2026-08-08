@@ -216,17 +216,13 @@ public class UserController {
      * @param body
      * @return mensaje de respuesta
      */
-    @PutMapping("/me/password")
-    public ResponseEntity<UserMessage> changePassword(
-            HttpServletRequest request,
-            @RequestBody UserChangePasswordDTO body) {
-        try {
-            Long userId = (Long) request.getAttribute("userId");
-            UserMessage response = userService.changePassword(userId, body.getCurrentPassword(), body.getNewPassword());
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        }
-    }
+   @PutMapping("/me/password")
+public ResponseEntity<UserMessage> changePassword(
+        HttpServletRequest request,
+        @RequestBody UserChangePasswordDTO body) {
+
+    Long userId = (Long) request.getAttribute("userId");
+    UserMessage response = userService.changePassword(userId, body.getCurrentPassword(), body.getNewPassword());
+    return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+}
 }

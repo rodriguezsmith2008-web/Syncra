@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +24,7 @@ import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -437,39 +439,40 @@ public class UserService {
      * @param update datos a actualizar
      * @return mensaje de respuesta
      */
-    public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
+   public UserMessage updateProfile(Long id, UserUpdateMeDTO update) {
 
-        UserMessage message = new UserMessage();
-        Optional<UsersEntity> user = usersRepository.findById(id);
+    UserMessage message = new UserMessage();
+    Optional<UsersEntity> user = usersRepository.findById(id);
 
-        if (user.isEmpty()) {
-            message.setUserMessage("usuario no encontrado");
-            return message;
-        }
-
-        UsersEntity usersEntity = user.get();
-
-        if (update.getEmail() != null && !update.getEmail().equals(usersEntity.getEmail())) {
-            if (usersRepository.existsByEmail(update.getEmail())) {
-                message.setUserMessage("Correo ya existente");
-                return message;
-            }
-            usersEntity.setEmail(update.getEmail());
-        }
-
-        if (update.getFirstName() != null)
-            usersEntity.setFirstName(update.getFirstName());
-        if (update.getLastName() != null)
-            usersEntity.setLastName(update.getLastName());
-        if (update.getDocumentNumber() != null)
-            usersEntity.setDocumentNumber(update.getDocumentNumber());
-        if (update.getAvatarUrl() != null)
-            usersEntity.setAvatarUrl(update.getAvatarUrl());
-
-        usersRepository.save(usersEntity);
-        message.setUserMessage("Actualización exitosa");
+    if (user.isEmpty()) {
+        message.setUserMessage("usuario no encontrado");
         return message;
     }
+
+    UsersEntity usersEntity = user.get();
+
+    if (update.getEmail() != null && !update.getEmail().equals(usersEntity.getEmail())) {
+        if (usersRepository.existsByEmail(update.getEmail())) {
+            message.setUserMessage("Correo ya existente");
+            return message;
+        }
+        usersEntity.setEmail(update.getEmail());
+    }
+
+    if (update.getFirstName() != null)
+        usersEntity.setFirstName(update.getFirstName());
+    if (update.getLastName() != null)
+        usersEntity.setLastName(update.getLastName());
+    if (update.getDocumentNumber() != null)
+        usersEntity.setDocumentNumber(update.getDocumentNumber());
+
+    // avatarUrl siempre se aplica tal cual llega, incluyendo null para borrar la foto
+    usersEntity.setAvatarUrl(update.getAvatarUrl());
+
+    usersRepository.save(usersEntity);
+    message.setUserMessage("Actualización exitosa");
+    return message;
+}
 
     /**
      * Cambia la contraseña del usuario autenticado
@@ -481,29 +484,27 @@ public class UserService {
      */
     public UserMessage changePassword(Long id, String currentPass, String newPass) {
 
-        UserMessage message = new UserMessage();
+    UserMessage message = new UserMessage();
 
-        Optional<UsersEntity> userFound = usersRepository.findById(id);
+    Optional<UsersEntity> userFound = usersRepository.findById(id);
 
-        if (userFound.isEmpty()) {
-            message.setUserMessage("Usuario no encontrado");
-            return message;
-        }
-
-        UsersEntity user = userFound.get();
-
-        if (!passwordEncoder.matches(currentPass, user.getPassword())) {
-            message.setUserMessage("La contraseña actual es incorrecta");
-            return message;
-        }
-
-        user.setPassword(passwordEncoder.encode(newPass));
-        user.setMustChangePassword(false);
-        user.setTempPasswordExpiresAt(null);
-        usersRepository.save(user);
-
-        message.setUserMessage("Contraseña actualizada correctamente");
-
-        return message;
+    if (userFound.isEmpty()) {
+        throw new EntityNotFoundException("Usuario no encontrado");
     }
+
+    UsersEntity user = userFound.get();
+
+    if (!passwordEncoder.matches(currentPass, user.getPassword())) {
+        throw new BadCredentialsException("La contraseña actual es incorrecta");
+    }
+
+    user.setPassword(passwordEncoder.encode(newPass));
+    user.setMustChangePassword(false);
+    user.setTempPasswordExpiresAt(null);
+    usersRepository.save(user);
+
+    message.setUserMessage("Contraseña actualizada correctamente");
+
+    return message;
+}
 }
