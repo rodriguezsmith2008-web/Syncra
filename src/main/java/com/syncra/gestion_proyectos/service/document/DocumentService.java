@@ -1,10 +1,14 @@
 package com.syncra.gestion_proyectos.service.document;
 
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
+import com.syncra.gestion_proyectos.service.notification.NotificationService;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -18,10 +22,14 @@ import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
+import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
+
 import java.io.ByteArrayOutputStream;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 
@@ -42,6 +50,9 @@ public class DocumentService {
 
     /** Repositorio de plantillas de documentos */
     private final DocTemplateRepository docTemplateRepository;
+
+    private final NotificationService notificationService;
+    private final ProjectMemberRepository projectMemberRepository;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -115,8 +126,7 @@ public class DocumentService {
 
             templateFound = docTemplateRepository.findByCode("PT-AR-01");
 
-        }
-        else if (dto.getTemplateId() != null) {
+        } else if (dto.getTemplateId() != null) {
 
             templateFound = docTemplateRepository.findById(dto.getTemplateId());
 
@@ -204,10 +214,21 @@ public class DocumentService {
     public List<DocumentCommentResponseDTO> getComments(Long documentId) {
 
         List<DocumentCommentEntity> commentList = documentCommentRepository.findByDocumentId(documentId);
+
+        // Recolectar los ids de usuario únicos involucrados en los comentarios
+        List<Long> userIds = commentList.stream()
+                .map(DocumentCommentEntity::getUserId)
+                .distinct()
+                .toList();
+
+        // Una sola consulta para traer todos los usuarios necesarios
+        Map<Long, UsersEntity> usersById = usersRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
         List<DocumentCommentResponseDTO> response = new ArrayList<>();
 
         for (DocumentCommentEntity commentEntity : commentList) {
-            response.add(toCommentResponse(commentEntity));
+            response.add(toCommentResponse(commentEntity, usersById.get(commentEntity.getUserId())));
         }
 
         return response;
@@ -237,13 +258,40 @@ public class DocumentService {
             return message;
         }
 
-        DocumentCommentEntity newComment = new DocumentCommentEntity();
+        DocumentEntity document = documentFound.get();
 
+        DocumentCommentEntity newComment = new DocumentCommentEntity();
         newComment.setDocumentId(documentId);
         newComment.setUserId(userId);
         newComment.setContent(dto.getContent());
+        newComment.setParentCommentId(dto.getParentCommentId());
 
         documentCommentRepository.save(newComment);
+
+        if (dto.getParentCommentId() != null) {
+
+            documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
+                if (!parent.getUserId().equals(userId)) {
+                    notificationService.crear(parent.getUserId(), document.getProjectId(), null, documentId,
+                            "DOCUMENT_COMMENT_REPLY", "Te respondieron en: " + document.getTitle());
+                }
+            });
+
+        } else {
+
+            List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
+
+            for (ProjectMemberEntity member : members) {
+
+                Long memberId = member.getId().getUserId();
+
+                if (!memberId.equals(userId)) {
+                    notificationService.crear(memberId, document.getProjectId(), null, documentId,
+                            "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
+                }
+            }
+
+        }
 
         message.setMessage("Comentario agregado correctamente.");
         return message;
@@ -305,7 +353,7 @@ public class DocumentService {
      * @param commentEntity entidad a convertir
      * @return dto con la información del comentario
      */
-    private DocumentCommentResponseDTO toCommentResponse(DocumentCommentEntity commentEntity) {
+    private DocumentCommentResponseDTO toCommentResponse(DocumentCommentEntity commentEntity, UsersEntity user) {
 
         DocumentCommentResponseDTO response = new DocumentCommentResponseDTO();
 
@@ -314,14 +362,13 @@ public class DocumentService {
         response.setUserId(commentEntity.getUserId());
         response.setContent(commentEntity.getContent());
         response.setCreatedAt(commentEntity.getCreatedAt());
+        response.setParentCommentId(commentEntity.getParentCommentId());
 
-        // Traer nombre y avatar del usuario que comentó
-        usersRepository.findById(commentEntity.getUserId()).ifPresent(user -> {
+        if (user != null) {
             response.setUserFullName(user.getFirstName() + " " + user.getLastName());
             response.setUserAvatarUrl(user.getAvatarUrl());
-        });
+        }
 
-        // Calcular tiempo de visualización
         response.setTimeDisplay(calcularTimeDisplay(commentEntity.getCreatedAt()));
 
         return response;

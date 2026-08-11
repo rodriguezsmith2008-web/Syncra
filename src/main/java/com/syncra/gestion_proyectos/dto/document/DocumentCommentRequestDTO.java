@@ -7,4 +7,5 @@ import lombok.Data;
 public class DocumentCommentRequestDTO {
 
     private String content;
+    private Long parentCommentId; 
 }

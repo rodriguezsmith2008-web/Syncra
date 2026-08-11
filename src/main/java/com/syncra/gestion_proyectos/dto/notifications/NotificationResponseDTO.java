@@ -16,4 +16,5 @@ public class NotificationResponseDTO {
     private String message;
     private Boolean isRead;
     private LocalDateTime createdAt;
+    private Long documentId;
 }

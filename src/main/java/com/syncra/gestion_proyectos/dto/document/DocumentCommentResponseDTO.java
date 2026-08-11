@@ -20,4 +20,5 @@ public class DocumentCommentResponseDTO {
 
     // Tiempo formateado: "hace 5 minutos" o "15 jun 2025" si pasaron +24h
     private String timeDisplay;
+    private Long parentCommentId;
 }
