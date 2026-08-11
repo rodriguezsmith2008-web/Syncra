@@ -126,10 +126,10 @@ public class TaskService {
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
-        if (entity.getAssignedTo() != null) {
-            notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), "TASK_ASSIGNED",
-                    "Se te asigno la tarea: " + entity.getTitle());
-        }
+       if (entity.getAssignedTo() != null) {
+    notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), null, "TASK_ASSIGNED",
+            "Se te asigno la tarea: " + entity.getTitle());
+}
 
         return toResponse(entity);
     }
@@ -145,45 +145,44 @@ public class TaskService {
      * @return tarea actualizada, null si no existe
      */
     @Transactional
-  public TaskResponseDTO update(Long taskId, Long userId, TaskRequestDTO dto) {
+    public TaskResponseDTO update(Long taskId, Long userId, TaskRequestDTO dto) {
 
-    TaskEntity entity = repository.findById(taskId).orElse(null);
-    if (entity == null) {
-        return null;
+        TaskEntity entity = repository.findById(taskId).orElse(null);
+        if (entity == null) {
+            return null;
+        }
+
+        Long asignadoAnterior = entity.getAssignedTo();
+
+        if (dto.getTitle() != null)
+            entity.setTitle(dto.getTitle());
+        if (dto.getDescription() != null)
+            entity.setDescription(dto.getDescription());
+        if (dto.getColor() != null)
+            entity.setColor(dto.getColor());
+
+        entity.setDueDate(dto.getDueDate());
+
+        if (dto.getSprintId() != null)
+            entity.setSprintId(dto.getSprintId());
+        if (dto.getAssignedTo() != null)
+            entity.setAssignedTo(dto.getAssignedTo());
+
+        repository.save(entity);
+
+        if (dto.getAssignedTo() != null && !dto.getAssignedTo().equals(asignadoAnterior)) {
+
+            String valorAnterior = asignadoAnterior != null ? asignadoAnterior.toString() : null;
+            String valorNuevo = dto.getAssignedTo().toString();
+
+            taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
+
+            notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, null, "TASK_ASSIGNED",
+                    "Se te asigno la tarea: " + entity.getTitle());
+        }
+
+        return toResponse(entity);
     }
-
-    Long asignadoAnterior = entity.getAssignedTo();
-
-    if (dto.getTitle() != null)
-        entity.setTitle(dto.getTitle());
-    if (dto.getDescription() != null)
-        entity.setDescription(dto.getDescription());
-    if (dto.getColor() != null)
-        entity.setColor(dto.getColor());
-
-
-    entity.setDueDate(dto.getDueDate());
-
-    if (dto.getSprintId() != null)
-        entity.setSprintId(dto.getSprintId());
-    if (dto.getAssignedTo() != null)
-        entity.setAssignedTo(dto.getAssignedTo());
-
-    repository.save(entity);
-
-    if (dto.getAssignedTo() != null && !dto.getAssignedTo().equals(asignadoAnterior)) {
-
-        String valorAnterior = asignadoAnterior != null ? asignadoAnterior.toString() : null;
-        String valorNuevo = dto.getAssignedTo().toString();
-
-        taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
-
-        notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, "TASK_ASSIGNED",
-                "Se te asigno la tarea: " + entity.getTitle());
-    }
-
-    return toResponse(entity);
-}
 
     /**
      * Mueve una tarea a otra columna y/o posicion (drag & drop del tablero).
@@ -237,6 +236,7 @@ public class TaskService {
                         entity.getAssignedTo(),
                         entity.getProjectId(),
                         taskId,
+                        null,
                         "TASK_MOVED",
                         "La tarea '" + entity.getTitle() + "' cambio de columna");
             }
@@ -339,7 +339,8 @@ public class TaskService {
 
     public TaskResponseDTO unassign(Long taskId, Long userId) {
         TaskEntity entity = repository.findById(taskId).orElse(null);
-        if (entity == null) return null;
+        if (entity == null)
+            return null;
 
         entity.setAssignedTo(null);
         repository.save(entity);

@@ -41,6 +41,9 @@ public class NotificationEntity {
     @Column(name = "project_id")
     private Long projectId;
 
+    @Column(name = "document_id")
+    private Long documentId;
+
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();

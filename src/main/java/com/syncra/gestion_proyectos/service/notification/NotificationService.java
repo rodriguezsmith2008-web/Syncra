@@ -36,7 +36,9 @@ public class NotificationService {
 
             dto.setId(notification.getId());
             dto.setUserId(notification.getUserId());
+            dto.setProjectId(notification.getProjectId());
             dto.setTaskId(notification.getTaskId());
+            dto.setDocumentId(notification.getDocumentId());
             dto.setType(notification.getType());
             dto.setMessage(notification.getMessage());
             dto.setIsRead(notification.getIsRead());
@@ -118,32 +120,34 @@ public class NotificationService {
      * @param message mensaje a mostrar al usuario
      */
     @Transactional
-    public void crear(Long userId, Long projectId, Long taskId, String type, String message) {
+public void crear(Long userId, Long projectId, Long taskId, Long documentId, String type, String message) {
 
-        NotificationEntity entity = new NotificationEntity();
+    NotificationEntity entity = new NotificationEntity();
 
-        entity.setUserId(userId);
-        entity.setProjectId(projectId);
-        entity.setTaskId(taskId);
-        entity.setType(type);
-        entity.setMessage(message);
-        entity.setIsRead(false);
+    entity.setUserId(userId);
+    entity.setProjectId(projectId);
+    entity.setTaskId(taskId);
+    entity.setDocumentId(documentId);
+    entity.setType(type);
+    entity.setMessage(message);
+    entity.setIsRead(false);
 
-        repository.save(entity);
+    repository.save(entity);
 
-        NotificationResponseDTO dto = new NotificationResponseDTO();
+    NotificationResponseDTO dto = new NotificationResponseDTO();
 
-        dto.setId(entity.getId());
-        dto.setUserId(entity.getUserId());
-        dto.setProjectId(entity.getProjectId());
-        dto.setTaskId(entity.getTaskId());
-        dto.setType(entity.getType());
-        dto.setMessage(entity.getMessage());
-        dto.setIsRead(entity.getIsRead());
-        dto.setCreatedAt(entity.getCreatedAt());
+    dto.setId(entity.getId());
+    dto.setUserId(entity.getUserId());
+    dto.setProjectId(entity.getProjectId());
+    dto.setTaskId(entity.getTaskId());
+    dto.setDocumentId(entity.getDocumentId());
+    dto.setType(entity.getType());
+    dto.setMessage(entity.getMessage());
+    dto.setIsRead(entity.getIsRead());
+    dto.setCreatedAt(entity.getCreatedAt());
 
-        socketService.sendToUser(userId, dto);
-    }
+    socketService.sendToUser(userId, dto);
+}
 
     /**
      * contea las notificaciones no leidas

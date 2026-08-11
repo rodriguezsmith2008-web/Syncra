@@ -31,6 +31,9 @@ public class DocumentCommentEntity {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "parent_comment_id")
+    private Long parentCommentId;
     
     @PrePersist
     public void prePersist(){
