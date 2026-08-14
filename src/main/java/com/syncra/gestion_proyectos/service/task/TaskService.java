@@ -103,6 +103,7 @@ public class TaskService {
      * @return tarea creada
      */
     @Transactional
+
     public TaskResponseDTO create(Long projectId, Long createdBy, TaskRequestDTO dto) {
 
         TaskEntity entity = new TaskEntity();
@@ -126,10 +127,11 @@ public class TaskService {
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
-       if (entity.getAssignedTo() != null) {
-    notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), null, "TASK_ASSIGNED",
-            "Se te asigno la tarea: " + entity.getTitle());
-}
+        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
+            notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), null,
+                    "TASK_ASSIGNED",
+                    "Se te asigno la tarea: " + entity.getTitle());
+        }
 
         return toResponse(entity);
     }
@@ -177,8 +179,10 @@ public class TaskService {
 
             taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
 
-            notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, null, "TASK_ASSIGNED",
-                    "Se te asigno la tarea: " + entity.getTitle());
+            if (!dto.getAssignedTo().equals(userId)) {
+                notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, null, "TASK_ASSIGNED",
+                        "Se te asigno la tarea: " + entity.getTitle());
+            }
         }
 
         return toResponse(entity);
@@ -194,78 +198,77 @@ public class TaskService {
      * @param dto    columna y posicion destino
      * @return tarea movida, null si no existe
      */
-    @Transactional
-    public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
+  @Transactional
+public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
-        TaskEntity entity = repository.findById(taskId).orElse(null);
-        if (entity == null) {
-            return null;
+    TaskEntity entity = repository.findById(taskId).orElse(null);
+    if (entity == null) {
+        return null;
+    }
+
+    Long columnaAnterior = entity.getColumnId();
+    Long posicionAnterior = entity.getPosition();
+    Long columnaDestino = dto.getColumnId();
+    Long posicionDestino = dto.getPosition();
+
+    boolean cambioDeColumna = !columnaAnterior.equals(columnaDestino);
+
+    if (cambioDeColumna) {
+
+        List<TaskEntity> restantesOrigen = repository.findByColumnIdAndPositionGreaterThan(columnaAnterior,
+                posicionAnterior);
+        for (TaskEntity restante : restantesOrigen) {
+            restante.setPosition(restante.getPosition() - 1);
+            repository.save(restante);
         }
 
-        Long columnaAnterior = entity.getColumnId();
-        Long posicionAnterior = entity.getPosition();
-        Long columnaDestino = dto.getColumnId();
-        Long posicionDestino = dto.getPosition();
-
-        boolean cambioDeColumna = !columnaAnterior.equals(columnaDestino);
-
-        if (cambioDeColumna) {
-            // cierra el hueco que deja la tarea en su columna de origen
-            List<TaskEntity> restantesOrigen = repository.findByColumnIdAndPositionGreaterThan(columnaAnterior,
-                    posicionAnterior);
-            for (TaskEntity restante : restantesOrigen) {
-                restante.setPosition(restante.getPosition() - 1);
+        List<TaskEntity> restantesDestino = repository.findByColumnIdAndPositionGreaterThanEqual(columnaDestino,
+                posicionDestino);
+        for (TaskEntity restante : restantesDestino) {
+            if (!restante.getId().equals(taskId)) {
+                restante.setPosition(restante.getPosition() + 1);
                 repository.save(restante);
             }
-
-            // abre espacio en la columna destino para insertar en la posición pedida
-            List<TaskEntity> restantesDestino = repository.findByColumnIdAndPositionGreaterThanEqual(columnaDestino,
-                    posicionDestino);
-            for (TaskEntity restante : restantesDestino) {
-                if (!restante.getId().equals(taskId)) {
-                    restante.setPosition(restante.getPosition() + 1);
-                    repository.save(restante);
-                }
-            }
-
-            taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
-                    columnaDestino.toString());
-
-            if (entity.getAssignedTo() != null) {
-                notificationService.crear(
-                        entity.getAssignedTo(),
-                        entity.getProjectId(),
-                        taskId,
-                        null,
-                        "TASK_MOVED",
-                        "La tarea '" + entity.getTitle() + "' cambio de columna");
-            }
-
-        } else if (!posicionAnterior.equals(posicionDestino)) {
-            // reordenar dentro de la misma columna
-            if (posicionDestino > posicionAnterior) {
-                List<TaskEntity> entreMedio = repository.findByColumnIdAndPositionBetween(columnaAnterior,
-                        posicionAnterior + 1, posicionDestino);
-                for (TaskEntity t : entreMedio) {
-                    t.setPosition(t.getPosition() - 1);
-                    repository.save(t);
-                }
-            } else {
-                List<TaskEntity> entreMedio = repository.findByColumnIdAndPositionBetween(columnaAnterior,
-                        posicionDestino, posicionAnterior - 1);
-                for (TaskEntity t : entreMedio) {
-                    t.setPosition(t.getPosition() + 1);
-                    repository.save(t);
-                }
-            }
         }
 
-        entity.setColumnId(columnaDestino);
-        entity.setPosition(posicionDestino);
-        repository.save(entity);
+        taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
+                columnaDestino.toString());
 
-        return toResponse(entity);
+        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
+            notificationService.crear(
+                    entity.getAssignedTo(),
+                    entity.getProjectId(),
+                    taskId,
+                    null,
+                    "TASK_MOVED",
+                    "La tarea '" + entity.getTitle() + "' cambio de columna");
+        }
+
+    } else if (!posicionAnterior.equals(posicionDestino)) {
+
+        if (posicionDestino > posicionAnterior) {
+            List<TaskEntity> entreMedio = repository.findByColumnIdAndPositionBetween(columnaAnterior,
+                    posicionAnterior + 1, posicionDestino);
+            for (TaskEntity t : entreMedio) {
+                t.setPosition(t.getPosition() - 1);
+                repository.save(t);
+            }
+        } else {
+            List<TaskEntity> entreMedio = repository.findByColumnIdAndPositionBetween(columnaAnterior,
+                    posicionDestino, posicionAnterior - 1);
+            for (TaskEntity t : entreMedio) {
+                t.setPosition(t.getPosition() + 1);
+                repository.save(t);
+            }
+        }
     }
+
+    entity.setColumnId(columnaDestino);
+    entity.setPosition(posicionDestino);
+    repository.save(entity);
+
+    return toResponse(entity);
+}
 
     /**
      * Elimina una tarea y reindexa las posiciones restantes de su columna
