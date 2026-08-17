@@ -268,30 +268,28 @@ public class DocumentService {
 
         documentCommentRepository.save(newComment);
 
-        if (dto.getParentCommentId() != null) {
+   if (dto.getParentCommentId() != null) {
 
-            documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
-                if (!parent.getUserId().equals(userId)) {
-                    notificationService.crear(parent.getUserId(), document.getProjectId(), null, documentId,
-                            "DOCUMENT_COMMENT_REPLY", "Te respondieron en: " + document.getTitle());
-                }
-            });
-
-        } else {
-
-            List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
-
-            for (ProjectMemberEntity member : members) {
-
-                Long memberId = member.getId().getUserId();
-
-                if (!memberId.equals(userId)) {
-                    notificationService.crear(memberId, document.getProjectId(), null, documentId,
-                            "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
-                }
-            }
-
+    documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
+        if (!parent.getUserId().equals(userId)) {
+            notificationService.crear(parent.getUserId(), userId, document.getProjectId(), null, documentId,
+                    newComment.getId(), "DOCUMENT_COMMENT_REPLY", "Te respondio en: " + document.getTitle());
         }
+    });
+
+} else {
+
+    List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
+
+    for (ProjectMemberEntity member : members) {
+        Long memberId = member.getId().getUserId();
+        if (!memberId.equals(userId)) {
+            notificationService.crear(memberId, userId, document.getProjectId(), null, documentId, null,
+                    "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
+        }
+    }
+
+}
 
         message.setMessage("Comentario agregado correctamente.");
         return message;

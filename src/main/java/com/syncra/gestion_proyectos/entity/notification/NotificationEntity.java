@@ -44,6 +44,12 @@ public class NotificationEntity {
     @Column(name = "document_id")
     private Long documentId;
 
+    @Column(name = "comment_id")
+private Long commentId;
+
+@Column(name = "actor_user_id")
+private Long actorUserId;
+
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();

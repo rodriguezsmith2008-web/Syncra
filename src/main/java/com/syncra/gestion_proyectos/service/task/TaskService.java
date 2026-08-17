@@ -127,11 +127,10 @@ public class TaskService {
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
-        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
-            notificationService.crear(entity.getAssignedTo(), entity.getProjectId(), entity.getId(), null,
-                    "TASK_ASSIGNED",
-                    "Se te asigno la tarea: " + entity.getTitle());
-        }
+       if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
+    notificationService.crear(entity.getAssignedTo(), createdBy, entity.getProjectId(), entity.getId(), null, null,
+            "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
+}
 
         return toResponse(entity);
     }
@@ -179,10 +178,10 @@ public class TaskService {
 
             taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
 
-            if (!dto.getAssignedTo().equals(userId)) {
-                notificationService.crear(dto.getAssignedTo(), entity.getProjectId(), taskId, null, "TASK_ASSIGNED",
-                        "Se te asigno la tarea: " + entity.getTitle());
-            }
+           if (!dto.getAssignedTo().equals(userId)) {
+    notificationService.crear(dto.getAssignedTo(), userId, entity.getProjectId(), taskId, null, null,
+            "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
+}
         }
 
         return toResponse(entity);
@@ -198,7 +197,7 @@ public class TaskService {
      * @param dto    columna y posicion destino
      * @return tarea movida, null si no existe
      */
-  @Transactional
+@Transactional
 public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
     TaskEntity entity = repository.findById(taskId).orElse(null);
@@ -234,15 +233,10 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
         taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
                 columnaDestino.toString());
 
-        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
-            notificationService.crear(
-                    entity.getAssignedTo(),
-                    entity.getProjectId(),
-                    taskId,
-                    null,
-                    "TASK_MOVED",
-                    "La tarea '" + entity.getTitle() + "' cambio de columna");
-        }
+       if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
+    notificationService.crear(entity.getAssignedTo(), userId, entity.getProjectId(), entity.getId(), null, null,
+            "TASK_MOVED", "La tarea '" + entity.getTitle() + "' cambio de columna");
+}
 
     } else if (!posicionAnterior.equals(posicionDestino)) {
 

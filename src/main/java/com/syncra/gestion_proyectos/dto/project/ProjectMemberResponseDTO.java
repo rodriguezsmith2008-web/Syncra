@@ -9,5 +9,7 @@ public class ProjectMemberResponseDTO {
     private Long userId;
     private String firstName;
     private String lastName;
+    private String avatarUrl;
+  
 
 }
