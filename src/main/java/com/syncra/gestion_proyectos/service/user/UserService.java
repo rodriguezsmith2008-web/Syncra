@@ -507,4 +507,61 @@ public class UserService {
 
     return message;
 }
+
+/**
+ * Obtiene usuarios filtrados por rol y búsqueda opcional.
+ * Si role no se especifica, devuelve todos; si search no se especifica, no filtra por texto.
+ *
+ * @param role   nombre del rol (p.ej. "APPRENTICE") o null
+ * @param search término de búsqueda (nombre, documento o grupo) o null
+ * @return lista de usuarios filtrados
+ */
+public List<UserResponseDTO> getUsersByRoleAndSearch(String role, String search) {
+    // 1. Obtener usuarios por rol si se especifica
+    List<UsersEntity> users;
+    if (role != null && !role.isBlank()) {
+        try {
+            RoleUserEnum roleEnum = RoleUserEnum.valueOf(role.toUpperCase());
+            users = usersRepository.findByRole(roleEnum);
+        } catch (IllegalArgumentException e) {
+            return new ArrayList<>();
+        }
+    } else {
+        users = usersRepository.findAll();
+    }
+
+    // 2. Si no hay búsqueda, convertir y devolver
+    if (search == null || search.isBlank()) {
+        return users.stream().map(this::toUserResponseDTO).toList();
+    }
+
+    // 3. Filtrar por búsqueda (nombre, documento o grupo)
+    String lowerSearch = search.toLowerCase().trim();
+    return users.stream()
+            .filter(u ->
+                    u.getFirstName().toLowerCase().contains(lowerSearch) ||
+                    u.getLastName().toLowerCase().contains(lowerSearch) ||
+                    u.getDocumentNumber().toLowerCase().contains(lowerSearch) ||
+                    (u.getGroupName() != null && u.getGroupName().toLowerCase().contains(lowerSearch))
+            )
+            .map(this::toUserResponseDTO)
+            .toList();
+}
+
+/**
+ * Método auxiliar para convertir UsersEntity a UserResponseDTO
+ */
+private UserResponseDTO toUserResponseDTO(UsersEntity user) {
+    UserResponseDTO dto = new UserResponseDTO();
+    dto.setId(user.getId());
+    dto.setFirstName(user.getFirstName());
+    dto.setLastName(user.getLastName());
+    dto.setDocumentNumber(user.getDocumentNumber());
+    dto.setEmail(user.getEmail());
+    dto.setRole(user.getRole().name());
+    dto.setGroupName(user.getGroupName());
+    dto.setAvatarUrl(user.getAvatarUrl());
+    dto.setStatus(user.getStatus().name());
+    return dto;
+}
 }
