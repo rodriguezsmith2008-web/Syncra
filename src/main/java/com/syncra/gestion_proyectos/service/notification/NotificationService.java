@@ -2,12 +2,16 @@ package com.syncra.gestion_proyectos.service.notification;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.notifications.NotificationResponseDTO;
 import com.syncra.gestion_proyectos.entity.notification.NotificationEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.repository.notification.NotificationRepository;
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -18,47 +22,31 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final NotificationSocketService socketService;
+    private final UsersRepository usersRepository;
 
-    /**
-     * Obtiene todas las notificaciones de un usuario
-     *
-     * @param userId
-     * @return lista de notificaciones
-     */
     public List<NotificationResponseDTO> getByUser(Long userId) {
 
         List<NotificationEntity> notifications = repository.findByUserIdOrderByCreatedAtDesc(userId);
-        List<NotificationResponseDTO> response = new ArrayList<>();
-
-        for (NotificationEntity notification : notifications) {
-
-            NotificationResponseDTO dto = new NotificationResponseDTO();
-
-            dto.setId(notification.getId());
-            dto.setUserId(notification.getUserId());
-            dto.setProjectId(notification.getProjectId());
-            dto.setTaskId(notification.getTaskId());
-            dto.setDocumentId(notification.getDocumentId());
-            dto.setType(notification.getType());
-            dto.setMessage(notification.getMessage());
-            dto.setIsRead(notification.getIsRead());
-            dto.setCreatedAt(notification.getCreatedAt());
-
-            response.add(dto);
-        }
-
-        return response;
+        return toResponseListConActor(notifications);
     }
 
-    /**
-     * Obtiene solo las notificaciones no leidas de un usuario
-     *
-     * @param userId
-     * @return lista de notificaciones no leidas
-     */
     public List<NotificationResponseDTO> getUnreadByUser(Long userId) {
 
         List<NotificationEntity> notifications = repository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
+        return toResponseListConActor(notifications);
+    }
+
+    private List<NotificationResponseDTO> toResponseListConActor(List<NotificationEntity> notifications) {
+
+        List<Long> actorIds = notifications.stream()
+                .map(NotificationEntity::getActorUserId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, UsersEntity> actorsById = usersRepository.findAllById(actorIds).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
         List<NotificationResponseDTO> response = new ArrayList<>();
 
         for (NotificationEntity notification : notifications) {
@@ -67,11 +55,22 @@ public class NotificationService {
 
             dto.setId(notification.getId());
             dto.setUserId(notification.getUserId());
+            dto.setActorUserId(notification.getActorUserId());
+            dto.setProjectId(notification.getProjectId());
             dto.setTaskId(notification.getTaskId());
+            dto.setDocumentId(notification.getDocumentId());
+            dto.setCommentId(notification.getCommentId());
             dto.setType(notification.getType());
             dto.setMessage(notification.getMessage());
             dto.setIsRead(notification.getIsRead());
             dto.setCreatedAt(notification.getCreatedAt());
+
+            UsersEntity actor = actorsById.get(notification.getActorUserId());
+
+            if (actor != null) {
+                dto.setActorFullName(actor.getFirstName() + " " + actor.getLastName());
+                dto.setActorAvatarUrl(actor.getAvatarUrl());
+            }
 
             response.add(dto);
         }
@@ -79,13 +78,6 @@ public class NotificationService {
         return response;
     }
 
-    /**
-     * Marca una notificacion como leida
-     *
-     * @param notificationId
-     * @param userId         id del usuario autenticado
-     * @return notificacion actualizada
-     */
     @Transactional
     public NotificationResponseDTO markAsRead(Long notificationId, Long userId) {
 
@@ -102,96 +94,84 @@ public class NotificationService {
 
         dto.setId(entity.getId());
         dto.setUserId(entity.getUserId());
+        dto.setActorUserId(entity.getActorUserId());
+        dto.setProjectId(entity.getProjectId());
         dto.setTaskId(entity.getTaskId());
+        dto.setDocumentId(entity.getDocumentId());
+        dto.setCommentId(entity.getCommentId());
         dto.setType(entity.getType());
         dto.setMessage(entity.getMessage());
         dto.setIsRead(entity.getIsRead());
         dto.setCreatedAt(entity.getCreatedAt());
 
+        if (entity.getActorUserId() != null) {
+            usersRepository.findById(entity.getActorUserId()).ifPresent(actor -> {
+                dto.setActorFullName(actor.getFirstName() + " " + actor.getLastName());
+                dto.setActorAvatarUrl(actor.getAvatarUrl());
+            });
+        }
+
         return dto;
     }
 
-    /**
-     * Crea una notificacion para un usuario.
-     *
-     * @param userId  destinatario de la notificacion
-     * @param taskId  tarea relacionada
-     * @param type    tipo de evento
-     * @param message mensaje a mostrar al usuario
-     */
     @Transactional
-public void crear(Long userId, Long projectId, Long taskId, Long documentId, String type, String message) {
+    public void crear(Long userId, Long actorUserId, Long projectId, Long taskId, Long documentId, Long commentId,
+            String type, String message) {
 
-    NotificationEntity entity = new NotificationEntity();
+        NotificationEntity entity = new NotificationEntity();
 
-    entity.setUserId(userId);
-    entity.setProjectId(projectId);
-    entity.setTaskId(taskId);
-    entity.setDocumentId(documentId);
-    entity.setType(type);
-    entity.setMessage(message);
-    entity.setIsRead(false);
+        entity.setUserId(userId);
+        entity.setActorUserId(actorUserId);
+        entity.setProjectId(projectId);
+        entity.setTaskId(taskId);
+        entity.setDocumentId(documentId);
+        entity.setCommentId(commentId);
+        entity.setType(type);
+        entity.setMessage(message);
+        entity.setIsRead(false);
 
-    repository.save(entity);
+        repository.save(entity);
 
-    NotificationResponseDTO dto = new NotificationResponseDTO();
+        NotificationResponseDTO dto = new NotificationResponseDTO();
 
-    dto.setId(entity.getId());
-    dto.setUserId(entity.getUserId());
-    dto.setProjectId(entity.getProjectId());
-    dto.setTaskId(entity.getTaskId());
-    dto.setDocumentId(entity.getDocumentId());
-    dto.setType(entity.getType());
-    dto.setMessage(entity.getMessage());
-    dto.setIsRead(entity.getIsRead());
-    dto.setCreatedAt(entity.getCreatedAt());
+        dto.setId(entity.getId());
+        dto.setUserId(entity.getUserId());
+        dto.setActorUserId(entity.getActorUserId());
+        dto.setProjectId(entity.getProjectId());
+        dto.setTaskId(entity.getTaskId());
+        dto.setDocumentId(entity.getDocumentId());
+        dto.setCommentId(entity.getCommentId());
+        dto.setType(entity.getType());
+        dto.setMessage(entity.getMessage());
+        dto.setIsRead(entity.getIsRead());
+        dto.setCreatedAt(entity.getCreatedAt());
 
-    socketService.sendToUser(userId, dto);
-}
+        if (actorUserId != null) {
+            usersRepository.findById(actorUserId).ifPresent(actor -> {
+                dto.setActorFullName(actor.getFirstName() + " " + actor.getLastName());
+                dto.setActorAvatarUrl(actor.getAvatarUrl());
+            });
+        }
 
-    /**
-     * contea las notificaciones no leidas
-     * 
-     * @param userId
-     * @return
-     */
+        socketService.sendToUser(userId, dto);
+    }
+
     public long countUnread(Long userId) {
         return repository.countByUserIdAndIsReadFalse(userId);
     }
 
-    /**
-     * Marca todas las notificaciones leidas
-     * 
-     * @param userId
-     */
     @Transactional
     public void marcarTodasComoLeidas(Long userId) {
         repository.markAllAsRead(userId);
     }
 
-    /**
-     * Elimina todas las notificaciones leidas
-     * 
-     * @param id
-     * @param userId
-     */
-
     @Transactional
     public void eliminar(Long id, Long userId) {
-
         repository.deleteByIdAndUserId(id, userId);
-
     }
 
-    /**
-     * Elimina una sola notificacion
-     * 
-     * @param userId
-     */
     @Transactional
     public void eliminarLeidas(Long userId) {
-
         repository.deleteByUserIdAndIsReadTrue(userId);
-
     }
 }
