@@ -22,6 +22,7 @@ import com.syncra.gestion_proyectos.dto.users.UserUpdateMeDTO;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.enums.UserStatusEnum;
+import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -35,6 +36,7 @@ public class UserService {
      * Repositorio de usuarios
      */
     private final UsersRepository usersRepository;
+    private final ProjectMemberRepository projectMemberRepository;
 
     /**
      * Encriptador de contraseñas
@@ -562,6 +564,13 @@ private UserResponseDTO toUserResponseDTO(UsersEntity user) {
     dto.setGroupName(user.getGroupName());
     dto.setAvatarUrl(user.getAvatarUrl());
     dto.setStatus(user.getStatus().name());
+
+    if (user.getRole() == RoleUserEnum.APPRENTICE) {
+        boolean hasProject = projectMemberRepository.existsByIdUserId(user.getId());
+        dto.setHasProject(hasProject);
+    } else {
+        dto.setHasProject(null);
+    }
     return dto;
 }
 }

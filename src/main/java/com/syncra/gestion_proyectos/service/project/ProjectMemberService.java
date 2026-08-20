@@ -83,6 +83,7 @@ public class ProjectMemberService {
         if (user != null) {
             r.setFirstName(user.getFirstName());
             r.setLastName(user.getLastName());
+            r.setAvatarUrl(user.getAvatarUrl());
         }
 
         return r;
@@ -116,9 +117,18 @@ public class ProjectMemberService {
 
         ProjectMemberEntity saved = memberRepository.save(entity);
 
+        // Obtener el usuario para incluir el avatar
+        UsersEntity user = userRepository.findById(userId).orElse(null);
+
         ProjectMemberResponseDTO dto = new ProjectMemberResponseDTO();
         dto.setProjectId(saved.getId().getProjectId());
         dto.setUserId(saved.getId().getUserId());
+
+        if (user != null) {
+            dto.setFirstName(user.getFirstName());
+            dto.setLastName(user.getLastName());
+            dto.setAvatarUrl(user.getAvatarUrl());
+        }
 
         return dto;
     }

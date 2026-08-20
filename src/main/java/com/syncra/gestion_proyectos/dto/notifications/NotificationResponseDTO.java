@@ -17,4 +17,8 @@ public class NotificationResponseDTO {
     private Boolean isRead;
     private LocalDateTime createdAt;
     private Long documentId;
+    private Long actorUserId;
+    private String actorFullName;
+    private String actorAvatarUrl;
+    private Long commentId;
 }
