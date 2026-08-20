@@ -21,4 +21,7 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMemberEnti
     //elimina la asociación que hay entre un usuario y un proyecto
     void deleteByIdProjectIdAndIdUserId(Long projectId, Long userId);
 
+    boolean existsByIdUserId(Long userId);
+
+
 }

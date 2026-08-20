@@ -225,4 +225,22 @@ public ResponseEntity<UserMessage> changePassword(
     UserMessage response = userService.changePassword(userId, body.getCurrentPassword(), body.getNewPassword());
     return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
 }
+
+/**
+ * Obtiene usuarios filtrados por rol y/o término de búsqueda.
+ * Ejemplo: GET /users?role=APPRENTICE&search=juan
+ *
+ * @param role   rol del usuario (opcional)
+ * @param search texto para buscar en nombre, documento o grupo (opcional)
+ * @return lista de usuarios que coinciden
+ */
+@GetMapping
+@RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
+public ResponseEntity<List<UserResponseDTO>> getUsers(
+        @RequestParam(required = false) String role,
+        @RequestParam(required = false) String search) {
+    List<UserResponseDTO> result = userService.getUsersByRoleAndSearch(role, search);
+    return ResponseEntity.ok(result);
+}
+
 }

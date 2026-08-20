@@ -23,4 +23,6 @@ public class UserResponseDTO {
 
     private String status;
 
+    private Boolean hasProject;
+
 }

@@ -56,3 +56,6 @@ security:
 
 cloudinary:
   url: ${CLOUDINARY_URL}
+
+jackson:
+    time-zone: America/Bogota

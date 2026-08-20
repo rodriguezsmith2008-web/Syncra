@@ -1,6 +1,8 @@
 package com.syncra.gestion_proyectos.service.project;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,8 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UsersRepository userRepository;
+    private final ProjectMemberService projectMemberService;
+    private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     /**
      * Obtiene todos los proyectos registrados en el sistema
@@ -71,6 +75,13 @@ public class ProjectService {
      */
     @Transactional
     public ProjectResponseDTO create(ProjectRequestDTO dto, Long createdBy) {
+        // Validar fechas
+        if (dto.getStartDate() != null && dto.getEndDate() != null) {
+            if (dto.getStartDate().isAfter(dto.getEndDate())) {
+                throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
+            }
+        }
+
         ProjectEntity entity = new ProjectEntity();
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
@@ -78,7 +89,19 @@ public class ProjectService {
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
         entity.setCreatedBy(createdBy);
-        return toResponse(projectRepository.save(entity));
+        // El estado se asigna por defecto en la entidad (IN_PROGRESS)
+
+        ProjectEntity saved = projectRepository.save(entity);
+
+        // Agregar al creador como miembro del proyecto (rol INSTRUCTOR automáticamente)
+        // Esto debe estar dentro de la misma transacción
+        try {
+            projectMemberService.addMember(saved.getId(), createdBy);
+        } catch (Exception e) {
+            log.warn("No se pudo agregar al creador como miembro: {}", e.getMessage());
+        }
+
+        return toResponse(saved);
     }
 
     /**
