@@ -10,6 +10,6 @@ public class ProjectMemberResponseDTO {
     private String firstName;
     private String lastName;
     private String avatarUrl;
-  
+   private String role;
 
 }

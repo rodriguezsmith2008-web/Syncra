@@ -28,27 +28,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequiredArgsConstructor
 public class ExternalLinkController {
 
-    // servicio encargado de la lógica de negocio de los enlaces externos
     private final ExternalLinkService linkService;
 
-    /**
-     * Obtiene todos los enlaces asociados a un proyecto
-     *
-     * @param projectId
-     * @return lista de enlaces externos
-     */
     @GetMapping
     public ResponseEntity<List<ExternalLinkResponseDTO>> getByProject(@PathVariable Long projectId) {
         return ResponseEntity.ok(linkService.getByProject(projectId));
     }
 
-    /**
-     * Obtiene un enlace específico de un proyecto
-     *
-     * @param projectId
-     * @param linkId
-     * @return info del enlace solicitado
-     */
     @GetMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> getById(
             @PathVariable Long projectId,
@@ -56,14 +42,6 @@ public class ExternalLinkController {
         return ResponseEntity.ok(linkService.getById(projectId, linkId));
     }
 
-    /**
-     * Crea un nuevo enlace asociado a un proyecto
-     *
-     * @param projectId
-     * @param dto
-     * @param request
-     * @return enlace creado
-     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PostMapping
     public ResponseEntity<ExternalLinkResponseDTO> create(
@@ -75,34 +53,25 @@ public class ExternalLinkController {
                 .body(linkService.create(projectId, dto, userId));
     }
 
-    /**
-     * Actualiza la información de un enlace existente
-     *
-     * @param projectId
-     * @param linkId
-     * @param dto
-     * @return enlace actualizado
-     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> update(
             @PathVariable Long projectId,
             @PathVariable Long linkId,
-            @RequestBody ExternalLinkRequestDTO dto) {
-        return ResponseEntity.ok(linkService.update(projectId, linkId, dto));
+            @RequestBody ExternalLinkRequestDTO dto,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(linkService.update(projectId, linkId, dto, userId));
     }
 
-    /**
-     * Elimina un enlace asociado a un proyecto
-     *
-     * @param projectId
-     * @param linkId
-     * @return respuesta sin contenido
-     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{linkId}")
-    public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long linkId) {
-        linkService.delete(projectId, linkId);
+    public ResponseEntity<Void> delete(
+            @PathVariable Long projectId,
+            @PathVariable Long linkId,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        linkService.delete(projectId, linkId, userId);
         return ResponseEntity.noContent().build();
     }
 }

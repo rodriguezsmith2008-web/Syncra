@@ -9,7 +9,10 @@ import com.syncra.gestion_proyectos.dto.task.TaskMoveDTO;
 import com.syncra.gestion_proyectos.dto.task.TaskRequestDTO;
 import com.syncra.gestion_proyectos.dto.task.TaskResponseDTO;
 import com.syncra.gestion_proyectos.entity.task.TaskEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.task.TaskRepository;
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
 import jakarta.transaction.Transactional;
@@ -22,6 +25,7 @@ public class TaskService {
     private final TaskRepository repository;
     private final TaskHistoryService taskHistoryService;
     private final NotificationService notificationService;
+        private final UsersRepository usersRepository;
 
     /**
      * Obtiene todas las tareas de un proyecto (tablero kanban completo)
@@ -92,6 +96,21 @@ public class TaskService {
         return tasks.get(tasks.size() - 1).getPosition() + 1;
     }
 
+
+        private void assignedUser(Long assignedTo) {
+
+        if (assignedTo == null) {
+            return;
+        }
+
+        UsersEntity usuario = usersRepository.findById(assignedTo)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario asignado no encontrado"));
+
+        if (usuario.getRole() != RoleUserEnum.APPRENTICE) {
+            throw new IllegalStateException("Solo se pueden asignar tareas a aprendices");
+        }
+    }
+
     /**
      * Crea una nueva tarea en una columna del proyecto.
      * Si no se envia posicion, se calcula automaticamente al final de la columna.
@@ -103,8 +122,9 @@ public class TaskService {
      * @return tarea creada
      */
     @Transactional
-
     public TaskResponseDTO create(Long projectId, Long createdBy, TaskRequestDTO dto) {
+
+       assignedUser(dto.getAssignedTo());
 
         TaskEntity entity = new TaskEntity();
         entity.setProjectId(projectId);
@@ -127,14 +147,13 @@ public class TaskService {
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
 
-       if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
-    notificationService.crear(entity.getAssignedTo(), createdBy, entity.getProjectId(), entity.getId(), null, null,
-            "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
-}
+        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
+            notificationService.crear(entity.getAssignedTo(), createdBy, entity.getProjectId(), entity.getId(), null, null,
+                    "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
+        }
 
         return toResponse(entity);
     }
-
     /**
      * Actualiza los datos de una tarea existente.
      * No cambia columna ni posicion, para eso se usa el metodo move.
@@ -145,7 +164,7 @@ public class TaskService {
      * @param dto
      * @return tarea actualizada, null si no existe
      */
-    @Transactional
+   @Transactional
     public TaskResponseDTO update(Long taskId, Long userId, TaskRequestDTO dto) {
 
         TaskEntity entity = repository.findById(taskId).orElse(null);
@@ -166,8 +185,11 @@ public class TaskService {
 
         if (dto.getSprintId() != null)
             entity.setSprintId(dto.getSprintId());
-        if (dto.getAssignedTo() != null)
+
+        if (dto.getAssignedTo() != null) {
+            assignedUser(dto.getAssignedTo());
             entity.setAssignedTo(dto.getAssignedTo());
+        }
 
         repository.save(entity);
 
@@ -178,10 +200,10 @@ public class TaskService {
 
             taskHistoryService.registrar(taskId, userId, "ASSIGNED", valorAnterior, valorNuevo);
 
-           if (!dto.getAssignedTo().equals(userId)) {
-    notificationService.crear(dto.getAssignedTo(), userId, entity.getProjectId(), taskId, null, null,
-            "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
-}
+            if (!dto.getAssignedTo().equals(userId)) {
+                notificationService.crear(dto.getAssignedTo(), userId, entity.getProjectId(), taskId, null, null,
+                        "TASK_ASSIGNED", "Te asigno la tarea: " + entity.getTitle());
+            }
         }
 
         return toResponse(entity);
