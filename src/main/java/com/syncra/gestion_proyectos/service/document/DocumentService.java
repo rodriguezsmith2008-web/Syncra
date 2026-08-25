@@ -190,6 +190,14 @@ public class DocumentService {
             documentToUpdate.setContent(dto.getContent());
         }
 
+        if (dto.isSprintIdProvided()) {
+            documentToUpdate.setSprintId(dto.getSprintId());
+        }
+
+        if (dto.isQuarterProvided()) {
+            documentToUpdate.setQuarter(dto.getQuarter());
+        }
+
         documentToUpdate.setUpdatedBy(updatedBy);
 
         documentRepository.save(documentToUpdate);
