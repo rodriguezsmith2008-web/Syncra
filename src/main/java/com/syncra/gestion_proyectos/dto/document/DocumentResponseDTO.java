@@ -24,4 +24,7 @@ public class DocumentResponseDTO {
     private LocalDateTime updatedAt;
     private Long parentDocumentId;
     private Integer sortOrder;
+    private Long sprintId;
+    private String sprintName;
+    private Integer quarter;
 }

@@ -12,4 +12,6 @@ public class DocumentRequestDTO {
     private Long templateId;
     private Long parentDocumentId;
     private DocumentTypeEnum documentType;
+    private Long sprintId;
+    private Integer quarter;
 }

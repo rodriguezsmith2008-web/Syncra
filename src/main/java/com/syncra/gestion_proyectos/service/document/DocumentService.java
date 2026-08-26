@@ -23,12 +23,14 @@ import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
+import com.syncra.gestion_proyectos.entity.sprint.SprintEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentCommentRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
+import com.syncra.gestion_proyectos.repository.sprint.SprintRepository;
 
 import java.io.ByteArrayOutputStream;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
@@ -53,6 +55,7 @@ public class DocumentService {
 
     private final NotificationService notificationService;
     private final ProjectMemberRepository projectMemberRepository;
+    private final SprintRepository sprintRepository;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -69,8 +72,9 @@ public class DocumentService {
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
-            response.add(toResponse(documentEntity));
-        }
+    response.add(toResponse(documentEntity, null));
+}
+
 
         return response;
     }
@@ -81,16 +85,28 @@ public class DocumentService {
      * @param id
      * @return documento encontrado, null si no existe o fue eliminado
      */
-    public DocumentResponseDTO getById(Long id) {
+   public DocumentResponseDTO getById(Long id) {
 
-        Optional<DocumentEntity> documentFound = documentRepository.findByIdAndDeletedAtIsNull(id);
+    Optional<DocumentEntity> documentFound =
+            documentRepository.findByIdAndDeletedAtIsNull(id);
 
-        if (documentFound.isEmpty()) {
-            return null;
-        }
-
-        return toResponse(documentFound.get());
+    if (documentFound.isEmpty()) {
+        return null;
     }
+
+    DocumentEntity entity = documentFound.get();
+
+    Map<Long, SprintEntity> sprintsById = null;
+
+    if (entity.getSprintId() != null) {
+        sprintsById = sprintRepository.findById(entity.getSprintId())
+                .map(sprint -> Map.of(entity.getSprintId(), sprint))
+                .orElse(null);
+    }
+
+    return toResponse(entity, sprintsById);
+}
+
 
     /**
      * Crea un nuevo documento en un proyecto
@@ -119,6 +135,8 @@ public class DocumentService {
         newDocument.setDocumentType(dto.getDocumentType());
         newDocument.setCreatedBy(createdBy);
         newDocument.setUpdatedBy(createdBy);
+        newDocument.setSprintId(dto.getSprintId());
+        newDocument.setQuarter(dto.getQuarter());
 
         Optional<DocTemplateEntity> templateFound = Optional.empty();
 
@@ -139,7 +157,8 @@ public class DocumentService {
 
         DocumentEntity saved = documentRepository.save(newDocument);
 
-        return toResponse(saved);
+        return toResponse(saved, null);
+
     }
 
     /**
@@ -169,6 +188,14 @@ public class DocumentService {
 
         if (dto.getContent() != null) {
             documentToUpdate.setContent(dto.getContent());
+        }
+
+        if (dto.isSprintIdProvided()) {
+            documentToUpdate.setSprintId(dto.getSprintId());
+        }
+
+        if (dto.isQuarterProvided()) {
+            documentToUpdate.setQuarter(dto.getQuarter());
         }
 
         documentToUpdate.setUpdatedBy(updatedBy);
@@ -268,28 +295,28 @@ public class DocumentService {
 
         documentCommentRepository.save(newComment);
 
-   if (dto.getParentCommentId() != null) {
+        if (dto.getParentCommentId() != null) {
 
-    documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
-        if (!parent.getUserId().equals(userId)) {
-            notificationService.crear(parent.getUserId(), userId, document.getProjectId(), null, documentId,
-                    newComment.getId(), "DOCUMENT_COMMENT_REPLY", "Te respondio en: " + document.getTitle());
+            documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
+                if (!parent.getUserId().equals(userId)) {
+                    notificationService.crear(parent.getUserId(), userId, document.getProjectId(), null, documentId,
+                            newComment.getId(), "DOCUMENT_COMMENT_REPLY", "Te respondio en: " + document.getTitle());
+                }
+            });
+
+        } else {
+
+            List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
+
+            for (ProjectMemberEntity member : members) {
+                Long memberId = member.getId().getUserId();
+                if (!memberId.equals(userId)) {
+                    notificationService.crear(memberId, userId, document.getProjectId(), null, documentId, null,
+                            "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
+                }
+            }
+
         }
-    });
-
-} else {
-
-    List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
-
-    for (ProjectMemberEntity member : members) {
-        Long memberId = member.getId().getUserId();
-        if (!memberId.equals(userId)) {
-            notificationService.crear(memberId, userId, document.getProjectId(), null, documentId, null,
-                    "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
-        }
-    }
-
-}
 
         message.setMessage("Comentario agregado correctamente.");
         return message;
@@ -311,9 +338,10 @@ public class DocumentService {
                         title);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-        for (DocumentEntity documentEntity : documentList) {
-            response.add(toResponse(documentEntity));
-        }
+       for (DocumentEntity documentEntity : documentList) {
+    response.add(toResponse(documentEntity, null));
+}
+
 
         return response;
     }
@@ -324,26 +352,39 @@ public class DocumentService {
      * @param documentEntity entidad a convertir
      * @return dto con la información del documento
      */
-    private DocumentResponseDTO toResponse(DocumentEntity documentEntity) {
+  private DocumentResponseDTO toResponse(
+        DocumentEntity documentEntity,
+        Map<Long, SprintEntity> sprintsById) {
 
-        DocumentResponseDTO response = new DocumentResponseDTO();
+    DocumentResponseDTO response = new DocumentResponseDTO();
 
-        response.setId(documentEntity.getId());
-        response.setProjectId(documentEntity.getProjectId());
-        response.setTemplateId(documentEntity.getTemplateId());
-        response.setTitle(documentEntity.getTitle());
-        response.setContent(documentEntity.getContent());
-        response.setStatus(documentEntity.getStatus());
-        response.setDocumentType(documentEntity.getDocumentType());
-        response.setCreatedBy(documentEntity.getCreatedBy());
-        response.setUpdatedBy(documentEntity.getUpdatedBy());
-        response.setParentDocumentId(documentEntity.getParentDocumentId());
-        response.setSortOrder(documentEntity.getSortOrder());
-        response.setCreatedAt(documentEntity.getCreatedAt());
-        response.setUpdatedAt(documentEntity.getUpdatedAt());
+    response.setId(documentEntity.getId());
+    response.setProjectId(documentEntity.getProjectId());
+    response.setTemplateId(documentEntity.getTemplateId());
+    response.setTitle(documentEntity.getTitle());
+    response.setContent(documentEntity.getContent());
+    response.setStatus(documentEntity.getStatus());
+    response.setDocumentType(documentEntity.getDocumentType());
+    response.setCreatedBy(documentEntity.getCreatedBy());
+    response.setUpdatedBy(documentEntity.getUpdatedBy());
+    response.setParentDocumentId(documentEntity.getParentDocumentId());
+    response.setSortOrder(documentEntity.getSortOrder());
+    response.setCreatedAt(documentEntity.getCreatedAt());
+    response.setUpdatedAt(documentEntity.getUpdatedAt());
+    response.setSprintId(documentEntity.getSprintId());
+    response.setQuarter(documentEntity.getQuarter());
 
-        return response;
+    if (documentEntity.getSprintId() != null && sprintsById != null) {
+        SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
+
+        if (sprint != null) {
+            response.setSprintName(sprint.getName());
+        }
     }
+
+    return response;
+}
+
 
     /**
      * Convierte una entidad de comentario en un dto de respuesta
@@ -399,20 +440,24 @@ public class DocumentService {
      * @param dto        estado nuevo
      * @return documento actualizado, null si no existe
      */
-    @Transactional
-    public DocumentResponseDTO updateStatus(Long documentId, DocumentStatusUpdateDTO dto) {
+   @Transactional
+public DocumentResponseDTO updateStatus(
+        Long documentId,
+        DocumentStatusUpdateDTO dto) {
 
-        DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
+    DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
 
-        if (entity == null) {
-            return null;
-        }
-
-        entity.setStatus(dto.getStatus());
-        documentRepository.save(entity);
-
-        return toResponse(entity);
+    if (entity == null) {
+        return null;
     }
+
+    entity.setStatus(dto.getStatus());
+
+    DocumentEntity saved = documentRepository.save(entity);
+
+    return toResponse(saved, null);
+}
+
 
     /**
      * Genera el PDF de un documento a partir de su contenido HTML
@@ -548,28 +593,38 @@ public class DocumentService {
 
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-        for (DocumentEntity child : children) {
-            response.add(toResponse(child));
-        }
+       for (DocumentEntity child : children) {
+    response.add(toResponse(child, null));
+}
+
 
         return response;
     }
 
-    public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
+   public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
 
-        List<DocumentEntity> minutes = documentRepository
-                .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
-                        projectId,
-                        DocumentTypeEnum.MEETING_MINUTES);
+    List<DocumentEntity> minutes = documentRepository
+            .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
+                    projectId,
+                    DocumentTypeEnum.MEETING_MINUTES);
 
-        List<DocumentResponseDTO> response = new ArrayList<>();
+    List<Long> sprintIds = minutes.stream()
+            .map(DocumentEntity::getSprintId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
 
-        for (DocumentEntity entity : minutes) {
-            response.add(toResponse(entity));
-        }
+    Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
+            .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
 
-        return response;
+    List<DocumentResponseDTO> response = new ArrayList<>();
+
+    for (DocumentEntity entity : minutes) {
+        response.add(toResponse(entity, sprintsById));
     }
+
+    return response;
+}
 
     public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
 
@@ -582,8 +637,8 @@ public class DocumentService {
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity entity : minutes) {
-            response.add(toResponse(entity));
-        }
+    response.add(toResponse(entity, null));
+}
 
         return response;
     }
