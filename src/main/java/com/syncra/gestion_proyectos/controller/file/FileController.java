@@ -8,12 +8,15 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.syncra.gestion_proyectos.dto.files.FileResponseDTO;
+import com.syncra.gestion_proyectos.dto.files.FileUpdateDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.files.FileService;
@@ -78,6 +81,13 @@ public class FileController {
             @RequestParam("file") MultipartFile file, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return ResponseEntity.status(HttpStatus.CREATED).body(service.upload(projectId, userId, file));
+    }
+
+    @RequireRole(RoleUserEnum.APPRENTICE)
+    @PutMapping("/{fileId}")
+    public ResponseEntity<FileResponseDTO> updateName(@PathVariable Long projectId,
+            @PathVariable Long fileId, @RequestBody FileUpdateDTO request) {
+        return ResponseEntity.ok(service.updateName(projectId, fileId, request.getName()));
     }
 
     /**

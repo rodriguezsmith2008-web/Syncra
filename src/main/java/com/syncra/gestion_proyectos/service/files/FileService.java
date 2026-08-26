@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -65,9 +66,18 @@ public class FileService {
     public FileResponseDTO upload(Long projectId, Long uploadedBy, MultipartFile file) {
 
         String url;
+        String originalFilename = file.getOriginalFilename();
 
         try {
-            Map<?, ?> resultado = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
+            Map<?, ?> uploadOptions = ObjectUtils.asMap("resource_type", "auto");
+
+            if (esArchivoRaw(originalFilename, file.getContentType())) {
+                uploadOptions = ObjectUtils.asMap(
+                        "resource_type", "raw",
+                        "public_id", originalFilename);
+            }
+
+            Map<?, ?> resultado = cloudinary.uploader().upload(file.getBytes(), uploadOptions);
             url = resultado.get("secure_url").toString();
         } catch (IOException e) {
             throw new RuntimeException("No se pudo subir el archivo a Cloudinary", e);
@@ -75,7 +85,7 @@ public class FileService {
 
         FilesEntity entity = new FilesEntity();
         entity.setProjectId(projectId);
-        entity.setName(file.getOriginalFilename());
+        entity.setName(originalFilename);
         entity.setUrl(url);
         entity.setType(resolverTipo(file.getContentType()));
         entity.setUploadedBy(uploadedBy);
@@ -94,6 +104,20 @@ public class FileService {
         return dto;
     }
 
+    private boolean esArchivoRaw(String filename, String contentType) {
+        String normalizedFilename = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        String normalizedContentType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+
+        return normalizedFilename.endsWith(".xlsx")
+                || normalizedFilename.endsWith(".xls")
+                || normalizedFilename.endsWith(".pptx")
+                || normalizedFilename.endsWith(".ppt")
+                || normalizedContentType.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                || normalizedContentType.equals("application/vnd.ms-excel")
+                || normalizedContentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+                || normalizedContentType.equals("application/vnd.ms-powerpoint");
+    }
+
     /**
      * Elimina un archivo del proyecto (no borra el archivo en Cloudinary,
      *
@@ -110,6 +134,32 @@ public class FileService {
         }
 
         repository.delete(entity);
+    }
+
+    @Transactional
+    public FileResponseDTO updateName(Long projectId, Long fileId, String name) {
+        FilesEntity entity = repository.findById(fileId).orElseThrow();
+
+        if (!entity.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("El archivo no pertenece al proyecto");
+        }
+
+        String trimmedName = name == null ? "" : name.trim();
+        if (trimmedName.isEmpty()) {
+            throw new IllegalArgumentException("El nombre del archivo no puede estar vacio");
+        }
+
+        entity.setName(trimmedName);
+        repository.save(entity);
+
+        FileResponseDTO dto = new FileResponseDTO();
+        dto.setId(entity.getId());
+        dto.setProjectId(entity.getProjectId());
+        dto.setName(entity.getName());
+        dto.setUrl(entity.getUrl());
+        dto.setType(entity.getType());
+        dto.setUploadedBy(entity.getUploadedBy());
+        return dto;
     }
 
     /**
