@@ -19,6 +19,7 @@ import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.kanban.KanbanColumnService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -57,13 +58,15 @@ public class KanbanColumnController {
      *
      * @param projectId
      * @param dto
+     * @param request
      * @return mensaje con la columna creada
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PostMapping
     public ResponseEntity<KanbaColumMessage<KanbaColumResponseDTO>> create(@PathVariable Long projectId,
-            @RequestBody KanbaColumRequestDTO dto) {
-        return ResponseEntity.ok(service.create(projectId, dto));
+            @RequestBody KanbaColumRequestDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.create(projectId, dto, userId));
     }
 
     /**
@@ -72,13 +75,15 @@ public class KanbanColumnController {
      * @param projectId
      * @param columnId
      * @param dto
+     * @param request
      * @return mensaje con la columna actualizada
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{columnId}")
     public ResponseEntity<KanbaColumMessage<KanbaColumResponseDTO>> update(@PathVariable Long projectId,
-            @PathVariable Long columnId, @RequestBody KanbaColumRequestDTO dto) {
-        return ResponseEntity.ok(service.update(projectId, columnId, dto));
+            @PathVariable Long columnId, @RequestBody KanbaColumRequestDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.update(projectId, columnId, dto, userId));
     }
 
     /**
@@ -101,12 +106,14 @@ public class KanbanColumnController {
      *
      * @param projectId
      * @param columnId
+     * @param request
      * @return mensaje del resultado de la operacion
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{columnId}")
     public ResponseEntity<KanbaColumMessage<Void>> delete(@PathVariable Long projectId,
-            @PathVariable Long columnId) {
-        return ResponseEntity.ok(service.delete(projectId, columnId));
+            @PathVariable Long columnId, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.delete(projectId, columnId, userId));
     }
 }

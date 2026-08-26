@@ -12,8 +12,11 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.syncra.gestion_proyectos.dto.files.FileResponseDTO;
 import com.syncra.gestion_proyectos.entity.files.FilesEntity;
+import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 import com.syncra.gestion_proyectos.enums.FilesTypeEnum;
 import com.syncra.gestion_proyectos.repository.files.FileRepository;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,7 @@ public class FileService {
 
     private final FileRepository repository;
     private final Cloudinary cloudinary;
+    private final ActivityLogService activityLogService;
 
     /**
      * Obtiene todos los archivos de un proyecto
@@ -82,6 +86,9 @@ public class FileService {
 
         repository.save(entity);
 
+        activityLogService.log(projectId, ActivityEntityTypeEnum.FILE, entity.getId(),
+                ActivityActionEnum.CREATED, "subió el archivo \"" + entity.getName() + "\"", uploadedBy);
+
         FileResponseDTO dto = new FileResponseDTO();
 
         dto.setId(entity.getId());
@@ -102,6 +109,18 @@ public class FileService {
      */
     @Transactional
     public void delete(Long projectId, Long fileId) {
+        delete(projectId, fileId, null);
+    }
+
+    /**
+     * Elimina un archivo del proyecto, registrando quién lo hizo
+     *
+     * @param projectId
+     * @param fileId
+     * @param deletedBy id del usuario que elimina el archivo
+     */
+    @Transactional
+    public void delete(Long projectId, Long fileId, Long deletedBy) {
 
         FilesEntity entity = repository.findById(fileId).orElse(null);
 
@@ -109,7 +128,14 @@ public class FileService {
             return;
         }
 
+        String name = entity.getName();
+
         repository.delete(entity);
+
+        if (deletedBy != null) {
+            activityLogService.log(projectId, ActivityEntityTypeEnum.FILE, fileId,
+                    ActivityActionEnum.DELETED, "eliminó el archivo \"" + name + "\"", deletedBy);
+        }
     }
 
     /**

@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentRequestDTO;
+import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
@@ -53,6 +56,7 @@ public class DocumentService {
 
     private final NotificationService notificationService;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ActivityLogService activityLogService;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -139,6 +143,9 @@ public class DocumentService {
 
         DocumentEntity saved = documentRepository.save(newDocument);
 
+        activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
+                ActivityActionEnum.CREATED, "creó el documento \"" + saved.getTitle() + "\"", createdBy);
+
         return toResponse(saved);
     }
 
@@ -175,6 +182,10 @@ public class DocumentService {
 
         documentRepository.save(documentToUpdate);
 
+        activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                documentToUpdate.getId(), ActivityActionEnum.UPDATED,
+                "editó el documento \"" + documentToUpdate.getTitle() + "\"", updatedBy);
+
         message.setMessage("Documento actualizado correctamente.");
         return message;
     }
@@ -200,6 +211,10 @@ public class DocumentService {
         documentToDelete.setDeletedAt(LocalDateTime.now());
 
         documentRepository.save(documentToDelete);
+
+        activityLogService.log(documentToDelete.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                documentToDelete.getId(), ActivityActionEnum.DELETED,
+                "eliminó el documento \"" + documentToDelete.getTitle() + "\"", documentToDelete.getUpdatedBy());
 
         message.setMessage("Documento eliminado correctamente.");
         return message;
@@ -268,28 +283,28 @@ public class DocumentService {
 
         documentCommentRepository.save(newComment);
 
-   if (dto.getParentCommentId() != null) {
+        if (dto.getParentCommentId() != null) {
 
-    documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
-        if (!parent.getUserId().equals(userId)) {
-            notificationService.crear(parent.getUserId(), userId, document.getProjectId(), null, documentId,
-                    newComment.getId(), "DOCUMENT_COMMENT_REPLY", "Te respondio en: " + document.getTitle());
+            documentCommentRepository.findById(dto.getParentCommentId()).ifPresent(parent -> {
+                if (!parent.getUserId().equals(userId)) {
+                    notificationService.crear(parent.getUserId(), userId, document.getProjectId(), null, documentId,
+                            newComment.getId(), "DOCUMENT_COMMENT_REPLY", "Te respondio en: " + document.getTitle());
+                }
+            });
+
+        } else {
+
+            List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
+
+            for (ProjectMemberEntity member : members) {
+                Long memberId = member.getId().getUserId();
+                if (!memberId.equals(userId)) {
+                    notificationService.crear(memberId, userId, document.getProjectId(), null, documentId, null,
+                            "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
+                }
+            }
+
         }
-    });
-
-} else {
-
-    List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(document.getProjectId());
-
-    for (ProjectMemberEntity member : members) {
-        Long memberId = member.getId().getUserId();
-        if (!memberId.equals(userId)) {
-            notificationService.crear(memberId, userId, document.getProjectId(), null, documentId, null,
-                    "DOCUMENT_COMMENT", "Nuevo comentario en: " + document.getTitle());
-        }
-    }
-
-}
 
         message.setMessage("Comentario agregado correctamente.");
         return message;
