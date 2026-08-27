@@ -67,6 +67,12 @@ public class DocumentEntity {
     @Column(name = "document_type")
     private DocumentTypeEnum documentType = DocumentTypeEnum.DOCUMENT;
 
+    @Column(name = "sprint_id")
+    private Long sprintId;
+
+    @Column(name = "quarter")
+    private Integer quarter;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

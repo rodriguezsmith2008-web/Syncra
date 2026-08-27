@@ -28,27 +28,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequiredArgsConstructor
 public class ExternalLinkController {
 
-    // servicio encargado de la lógica de negocio de los enlaces externos
     private final ExternalLinkService linkService;
 
-    /**
-     * Obtiene todos los enlaces asociados a un proyecto
-     *
-     * @param projectId
-     * @return lista de enlaces externos
-     */
     @GetMapping
     public ResponseEntity<List<ExternalLinkResponseDTO>> getByProject(@PathVariable Long projectId) {
         return ResponseEntity.ok(linkService.getByProject(projectId));
     }
 
-    /**
-     * Obtiene un enlace específico de un proyecto
-     *
-     * @param projectId
-     * @param linkId
-     * @return info del enlace solicitado
-     */
     @GetMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> getById(
             @PathVariable Long projectId,
@@ -56,14 +42,6 @@ public class ExternalLinkController {
         return ResponseEntity.ok(linkService.getById(projectId, linkId));
     }
 
-    /**
-     * Crea un nuevo enlace asociado a un proyecto
-     *
-     * @param projectId
-     * @param dto
-     * @param request
-     * @return enlace creado
-     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PostMapping
     public ResponseEntity<ExternalLinkResponseDTO> create(

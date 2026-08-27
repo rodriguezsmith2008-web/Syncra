@@ -142,6 +142,8 @@ public UserMessage resetPassword(String email, String code, String newPassword) 
     user.setPassword(passwordEncoder.encode(newPassword));
     user.setResetCode(null);
     user.setResetCodeExpires(null);
+    user.setMustChangePassword(false);
+    user.setTempPasswordExpiresAt(null);
 
     usersRepository.save(user);
 

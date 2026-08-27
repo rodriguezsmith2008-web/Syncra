@@ -84,6 +84,7 @@ public class ProjectMemberService {
             r.setFirstName(user.getFirstName());
             r.setLastName(user.getLastName());
             r.setAvatarUrl(user.getAvatarUrl());
+            r.setRole(user.getRole().name());
         }
 
         return r;
@@ -128,6 +129,7 @@ public class ProjectMemberService {
             dto.setFirstName(user.getFirstName());
             dto.setLastName(user.getLastName());
             dto.setAvatarUrl(user.getAvatarUrl());
+            dto.setRole(user.getRole().name());
         }
 
         return dto;

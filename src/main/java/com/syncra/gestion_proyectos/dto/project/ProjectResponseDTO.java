@@ -23,5 +23,4 @@ public class ProjectResponseDTO {
     private Long createdBy;
     private String createdByName;
     private LocalDateTime createdAt;
-
 }
