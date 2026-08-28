@@ -35,6 +35,18 @@ public class TaskHistoryService {
         return response;
     }
 
+    public List<TaskHistoryResponseDTO> getByTasks(List<Long> taskIds) {
+        if (taskIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<TaskHistoryResponseDTO> response = new ArrayList<>();
+        for (TaskHistoryEntity registro : repository.findByTaskIdInOrderByCreatedAtDesc(taskIds)) {
+            response.add(toResponse(registro));
+        }
+        return response;
+    }
+
     /**
      * Registra un nuevo evento en el historial de una tarea.
      * No se expone por controller: se llama internamente desde TaskService

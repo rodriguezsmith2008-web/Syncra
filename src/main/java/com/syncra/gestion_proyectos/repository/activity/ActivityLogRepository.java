@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.syncra.gestion_proyectos.entity.activity.ActivityLogEntity;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 
 public interface ActivityLogRepository extends JpaRepository<ActivityLogEntity, Long> {
 
@@ -15,5 +16,8 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLogEntity, 
      * @return lista de eventos de actividad
      */
     List<ActivityLogEntity> findByProjectIdOrderByCreatedAtDesc(Long projectId);
+
+    List<ActivityLogEntity> findByProjectIdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(
+            Long projectId, ActivityEntityTypeEnum entityType, Long entityId);
 
 }

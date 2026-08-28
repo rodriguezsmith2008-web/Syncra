@@ -15,8 +15,10 @@ import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
+import com.syncra.gestion_proyectos.dto.activity.ActivityLogResponseDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.service.document.DocumentService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class DocumentController {
 
     private final DocumentService documentService;
+        private final ActivityLogService activityLogService;
 
     /**
      * Lista únicamente los documentos normales.
@@ -76,6 +79,14 @@ public class DocumentController {
                 documentService.getChildren(id)
         );
     }
+
+        /** Historial detallado del documento, más reciente primero. */
+        @GetMapping("/{id}/history")
+        public ResponseEntity<List<ActivityLogResponseDTO>> getHistory(
+                        @PathVariable Long projectId,
+                        @PathVariable Long id) {
+                return ResponseEntity.ok(activityLogService.getByDocument(projectId, id));
+        }
 
     /**
      * Crear documento.
@@ -183,10 +194,13 @@ public class DocumentController {
     @PutMapping("/{documentId}/status")
     public ResponseEntity<DocumentResponseDTO> updateStatus(
             @PathVariable Long documentId,
-            @RequestBody DocumentStatusUpdateDTO dto) {
+            @RequestBody DocumentStatusUpdateDTO dto,
+            HttpServletRequest request) {
+
+        Long userId = (Long) request.getAttribute("userId");
 
         return ResponseEntity.ok(
-                documentService.updateStatus(documentId, dto)
+                documentService.updateStatus(documentId, dto, userId)
         );
     }
 

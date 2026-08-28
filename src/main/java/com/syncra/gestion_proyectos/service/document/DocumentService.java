@@ -164,6 +164,14 @@ public class DocumentService {
         activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
                 ActivityActionEnum.CREATED, "creó el documento \"" + saved.getTitle() + "\"", createdBy);
 
+        if (saved.getParentDocumentId() != null) {
+            documentRepository.findByIdAndDeletedAtIsNull(saved.getParentDocumentId()).ifPresent(parent ->
+                activityLogService.log(parent.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, parent.getId(),
+                    ActivityActionEnum.UPDATED,
+                    "añadió el subdocumento \"" + saved.getTitle() + "\"",
+                    createdBy));
+        }
+
         return toResponse(saved, null);
 
     }
@@ -188,13 +196,20 @@ public class DocumentService {
         }
 
         DocumentEntity documentToUpdate = documentFound.get();
+        String previousTitle = documentToUpdate.getTitle();
+        String previousContent = documentToUpdate.getContent();
+        StringBuilder changes = new StringBuilder();
 
-        if (dto.getTitle() != null && !dto.getTitle().trim().isEmpty()) {
+        if (dto.getTitle() != null && !dto.getTitle().trim().isEmpty()
+                && !dto.getTitle().trim().equals(previousTitle)) {
             documentToUpdate.setTitle(dto.getTitle());
+            changes.append("cambió el título de \"").append(previousTitle).append("\" a \"")
+                    .append(dto.getTitle().trim()).append("\"");
         }
 
-        if (dto.getContent() != null) {
+        if (dto.getContent() != null && !dto.getContent().equals(previousContent)) {
             documentToUpdate.setContent(dto.getContent());
+            appendChange(changes, describirCambioContenido(previousContent, dto.getContent()));
         }
 
         if (dto.isSprintIdProvided()) {
@@ -209,9 +224,10 @@ public class DocumentService {
 
         documentRepository.save(documentToUpdate);
 
+        String description = changes.length() == 0 ? "actualizó los datos del documento" : changes.toString();
         activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
                 documentToUpdate.getId(), ActivityActionEnum.UPDATED,
-                "editó el documento \"" + documentToUpdate.getTitle() + "\"", updatedBy);
+            description, updatedBy);
 
         message.setMessage("Documento actualizado correctamente.");
         return message;
@@ -309,6 +325,12 @@ public class DocumentService {
         newComment.setParentCommentId(dto.getParentCommentId());
 
         documentCommentRepository.save(newComment);
+
+        activityLogService.log(document.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, documentId,
+            ActivityActionEnum.UPDATED,
+            (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")
+                + " en el documento \"" + document.getTitle() + "\"",
+            userId);
 
         if (dto.getParentCommentId() != null) {
 
@@ -458,7 +480,8 @@ public class DocumentService {
    @Transactional
 public DocumentResponseDTO updateStatus(
         Long documentId,
-        DocumentStatusUpdateDTO dto) {
+    DocumentStatusUpdateDTO dto,
+    Long updatedBy) {
 
     DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
 
@@ -470,8 +493,117 @@ public DocumentResponseDTO updateStatus(
 
     DocumentEntity saved = documentRepository.save(entity);
 
+        activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
+            ActivityActionEnum.UPDATED,
+            "cambió el estado del documento a " + dto.getStatus().name(),
+            updatedBy);
+
     return toResponse(saved, null);
 }
+
+    private void appendChange(StringBuilder changes, String change) {
+        if (changes.length() > 0) {
+            changes.append("; ");
+        }
+        changes.append(change);
+    }
+
+    private String describirCambioContenido(String previousContent, String currentContent) {
+        String previous = previousContent == null ? "" : previousContent;
+        String current = currentContent == null ? "" : currentContent;
+        int previousImages = countOccurrences(previous, "<img");
+        int currentImages = countOccurrences(current, "<img");
+        int previousTables = countOccurrences(previous, "<table");
+        int currentTables = countOccurrences(current, "<table");
+        int previousDocuments = countOccurrences(previous, "data-document-card");
+        int currentDocuments = countOccurrences(current, "data-document-card");
+        int previousFiles = countOccurrences(previous, "data-file-card");
+        int currentFiles = countOccurrences(current, "data-file-card");
+        List<String> changes = new ArrayList<>();
+
+        if (currentImages > previousImages) changes.add("añadió " + (currentImages - previousImages) + " imagen(es)");
+        if (currentImages < previousImages) changes.add("eliminó " + (previousImages - currentImages) + " imagen(es)");
+        if (currentTables > previousTables) changes.add("añadió " + (currentTables - previousTables) + " tabla(s)");
+        if (currentTables < previousTables) changes.add("eliminó " + (previousTables - currentTables) + " tabla(s)");
+        if (currentDocuments > previousDocuments) changes.add("añadió " + (currentDocuments - previousDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentDocuments < previousDocuments) changes.add("eliminó " + (previousDocuments - currentDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentFiles > previousFiles) changes.add("añadió " + (currentFiles - previousFiles) + " archivo(s) adjunto(s)");
+        if (currentFiles < previousFiles) changes.add("eliminó " + (previousFiles - currentFiles) + " archivo(s) adjunto(s)");
+        agregarNombres(changes, previous, current, "data-titulo=", "página(s)");
+        agregarNombres(changes, previous, current, "data-file-name=", "archivo(s)");
+
+        registrarDiferencia(changes, previous, current, "<a ", "enlace(s)", "enlace(s)");
+        registrarDiferencia(changes, previous, current, "<h", "encabezado(s)", "encabezado(s)");
+        registrarDiferencia(changes, previous, current, "<ul", "lista(s) con viñetas", "lista(s) con viñetas");
+        registrarDiferencia(changes, previous, current, "<ol", "lista(s) numerada(s)", "lista(s) numerada(s)");
+        registrarDiferencia(changes, previous, current, "<blockquote", "cita(s)", "cita(s)");
+        registrarDiferencia(changes, previous, current, "<pre", "bloque(s) de código", "bloque(s) de código");
+        registrarDiferencia(changes, previous, current, "<hr", "separador(es)", "separador(es)");
+        registrarDiferencia(changes, previous, current, "<strong", "texto(s) en negrita", "texto(s) en negrita");
+        registrarDiferencia(changes, previous, current, "<em", "texto(s) en cursiva", "texto(s) en cursiva");
+        registrarDiferencia(changes, previous, current, "<u", "texto(s) subrayado(s)", "texto(s) subrayado(s)");
+        registrarDiferencia(changes, previous, current, "<s", "texto(s) tachado(s)", "texto(s) tachado(s)");
+        registrarDiferencia(changes, previous, current, "data-text-align=", "alineación(es) de texto", "alineación(es) de texto");
+        registrarDiferencia(changes, previous, current, "background-color", "resaltado(s) de texto", "resaltado(s) de texto");
+        registrarDiferencia(changes, previous, current, "color:", "color(es) de texto", "color(es) de texto");
+
+        String previousText = extraerTexto(previous);
+        String currentText = extraerTexto(current);
+        if (!previousText.equals(currentText)) changes.add("modificó el texto y formato del contenido");
+        return changes.isEmpty() ? "modificó el contenido del documento" : String.join(", ", changes);
+    }
+
+    private String extraerTexto(String html) {
+        return html.replaceAll("<[^>]+>", " ")
+                .replace("&nbsp;", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private void registrarDiferencia(List<String> changes, String previous, String current,
+            String token, String addedLabel, String removedLabel) {
+        int before = countOccurrences(previous, token);
+        int after = countOccurrences(current, token);
+        if (after > before) changes.add("añadió " + (after - before) + " " + addedLabel);
+        if (after < before) changes.add("eliminó " + (before - after) + " " + removedLabel);
+    }
+
+    private void agregarNombres(List<String> changes, String previous, String current,
+            String attribute, String label) {
+        List<String> before = extraerValores(previous, attribute);
+        List<String> after = extraerValores(current, attribute);
+        List<String> added = new ArrayList<>(after);
+        added.removeAll(before);
+        List<String> removed = new ArrayList<>(before);
+        removed.removeAll(after);
+        if (!added.isEmpty()) changes.add("añadió " + label + " " + String.join(", ", added));
+        if (!removed.isEmpty()) changes.add("eliminó " + label + " " + String.join(", ", removed));
+    }
+
+    private List<String> extraerValores(String html, String attribute) {
+        List<String> values = new ArrayList<>();
+        String search = attribute + "\"";
+        int index = 0;
+        while ((index = html.indexOf(search, index)) >= 0) {
+            int start = index + search.length();
+            int end = html.indexOf('"', start);
+            if (end < 0) break;
+            String value = html.substring(start, end).trim();
+            if (!value.isEmpty() && !values.contains(value)) values.add(value);
+            index = end + 1;
+        }
+        return values;
+    }
+
+    private int countOccurrences(String value, String token) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(token, index)) >= 0) {
+            count++;
+            index += token.length();
+        }
+        return count;
+    }
 
 
     /**
