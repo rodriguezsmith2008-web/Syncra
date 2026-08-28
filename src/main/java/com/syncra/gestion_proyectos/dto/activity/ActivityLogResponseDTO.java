@@ -18,6 +18,8 @@ public class ActivityLogResponseDTO {
     private ActivityActionEnum action;
     private String description;
     private Long userId;
+    private String userFullName;
+    private String userAvatarUrl;
     private LocalDateTime createdAt;
 
 }

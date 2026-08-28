@@ -15,4 +15,6 @@ public interface TaskHistoryRepository extends JpaRepository<TaskHistoryEntity, 
      * @return lista de registros de historial
      */
     List<TaskHistoryEntity> findByTaskIdOrderByCreatedAtDesc(Long taskId);
+
+    List<TaskHistoryEntity> findByTaskIdInOrderByCreatedAtDesc(List<Long> taskIds);
 }
