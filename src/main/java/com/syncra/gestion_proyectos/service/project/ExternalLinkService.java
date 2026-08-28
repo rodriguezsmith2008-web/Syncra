@@ -8,8 +8,11 @@ import com.syncra.gestion_proyectos.dto.project.ExternalLinkRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ExternalLinkResponseDTO;
 import com.syncra.gestion_proyectos.entity.project.ExternalLinkEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
+import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 import com.syncra.gestion_proyectos.repository.project.ExternalLinkRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -23,6 +26,7 @@ public class ExternalLinkService {
     private final ExternalLinkRepository linkRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final NotificationService notificationService;
+    private final ActivityLogService activityLogService;
 
     public List<ExternalLinkResponseDTO> getByProject(Long projectId) {
         return linkRepository.findByProjectId(projectId)
@@ -51,6 +55,9 @@ public class ExternalLinkService {
         notificarMiembros(projectId, addedBy, "RESOURCE_ADDED",
                 "Se agregó un nuevo recurso: " + saved.getTitle());
 
+        activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, saved.getId(),
+                ActivityActionEnum.CREATED, "agregó el recurso \"" + saved.getTitle() + "\"", addedBy);
+
         return toResponse(saved);
     }
 
@@ -70,6 +77,9 @@ public class ExternalLinkService {
         notificarMiembros(projectId, userId, "RESOURCE_UPDATED",
                 "Se actualizó el recurso: " + saved.getTitle());
 
+        activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, saved.getId(),
+                ActivityActionEnum.UPDATED, "editó el recurso \"" + saved.getTitle() + "\"", userId);
+
         return toResponse(saved);
     }
 
@@ -85,6 +95,9 @@ public class ExternalLinkService {
 
         notificarMiembros(projectId, userId, "RESOURCE_DELETED",
                 "Se eliminó el recurso: " + title);
+
+        activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, linkId,
+                ActivityActionEnum.DELETED, "eliminó el recurso \"" + title + "\"", userId);
     }
 
     private void notificarMiembros(Long projectId, Long actorId, String type, String message) {

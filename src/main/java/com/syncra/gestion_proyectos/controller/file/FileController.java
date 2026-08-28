@@ -95,12 +95,15 @@ public class FileController {
      *
      * @param projectId
      * @param fileId
+     * @param request   usado para obtener el id del usuario autenticado
      * @return respuesta sin contenido
      */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{fileId}")
-    public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long fileId) {
-        service.delete(projectId, fileId);
+    public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long fileId,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        service.delete(projectId, fileId, userId);
         return ResponseEntity.noContent().build();
     }
 }

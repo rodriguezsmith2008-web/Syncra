@@ -53,6 +53,15 @@ public class ExternalLinkController {
                 .body(linkService.create(projectId, dto, userId));
     }
 
+    /**
+     * Actualiza la información de un enlace existente
+     *
+     * @param projectId
+     * @param linkId
+     * @param dto
+     * @param request
+     * @return enlace actualizado
+     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @PutMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> update(
@@ -64,11 +73,17 @@ public class ExternalLinkController {
         return ResponseEntity.ok(linkService.update(projectId, linkId, dto, userId));
     }
 
+    /**
+     * Elimina un enlace asociado a un proyecto
+     *
+     * @param projectId
+     * @param linkId
+     * @param request
+     * @return respuesta sin contenido
+     */
     @RequireRole(RoleUserEnum.APPRENTICE)
     @DeleteMapping("/{linkId}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long projectId,
-            @PathVariable Long linkId,
+    public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long linkId,
             HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         linkService.delete(projectId, linkId, userId);

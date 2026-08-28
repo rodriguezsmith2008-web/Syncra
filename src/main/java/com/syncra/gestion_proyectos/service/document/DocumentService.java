@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentRequestDTO;
+import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
@@ -55,6 +58,7 @@ public class DocumentService {
 
     private final NotificationService notificationService;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ActivityLogService activityLogService;
     private final SprintRepository sprintRepository;
 
     /**
@@ -157,6 +161,9 @@ public class DocumentService {
 
         DocumentEntity saved = documentRepository.save(newDocument);
 
+        activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
+                ActivityActionEnum.CREATED, "creó el documento \"" + saved.getTitle() + "\"", createdBy);
+
         return toResponse(saved, null);
 
     }
@@ -202,6 +209,10 @@ public class DocumentService {
 
         documentRepository.save(documentToUpdate);
 
+        activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                documentToUpdate.getId(), ActivityActionEnum.UPDATED,
+                "editó el documento \"" + documentToUpdate.getTitle() + "\"", updatedBy);
+
         message.setMessage("Documento actualizado correctamente.");
         return message;
     }
@@ -227,6 +238,10 @@ public class DocumentService {
         documentToDelete.setDeletedAt(LocalDateTime.now());
 
         documentRepository.save(documentToDelete);
+
+        activityLogService.log(documentToDelete.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                documentToDelete.getId(), ActivityActionEnum.DELETED,
+                "eliminó el documento \"" + documentToDelete.getTitle() + "\"", documentToDelete.getUpdatedBy());
 
         message.setMessage("Documento eliminado correctamente.");
         return message;

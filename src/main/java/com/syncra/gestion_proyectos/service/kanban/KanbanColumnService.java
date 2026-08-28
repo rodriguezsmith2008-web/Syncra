@@ -9,7 +9,10 @@ import com.syncra.gestion_proyectos.dto.KanbaColumn.KanbaColumMessage;
 import com.syncra.gestion_proyectos.dto.KanbaColumn.KanbaColumRequestDTO;
 import com.syncra.gestion_proyectos.dto.KanbaColumn.KanbaColumResponseDTO;
 import com.syncra.gestion_proyectos.entity.kanban.KanbanColumnEntity;
+import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
+import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 import com.syncra.gestion_proyectos.repository.kanban.KanbanColumnRepository;
+import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 public class KanbanColumnService {
 
     private final KanbanColumnRepository repository;
+    private final ActivityLogService activityLogService;
 
     /**
      * Obtiene todas las columnas de un proyecto ordenadas por posicion
@@ -90,10 +94,11 @@ public class KanbanColumnService {
      *
      * @param projectId
      * @param dto
+     * @param userId    id del usuario que crea la columna
      * @return mensaje con la columna creada
      */
     @Transactional
-    public KanbaColumMessage<KanbaColumResponseDTO> create(Long projectId, KanbaColumRequestDTO dto) {
+    public KanbaColumMessage<KanbaColumResponseDTO> create(Long projectId, KanbaColumRequestDTO dto, Long userId) {
 
         KanbaColumMessage<KanbaColumResponseDTO> message = new KanbaColumMessage<>();
 
@@ -111,6 +116,9 @@ public class KanbanColumnService {
 
         repository.save(entity);
 
+        activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
+                ActivityActionEnum.CREATED, "creó la columna \"" + entity.getName() + "\"", userId);
+
         message.setData(toResponse(entity));
         message.setMessage("columna creada exitosamente");
 
@@ -123,10 +131,12 @@ public class KanbanColumnService {
      * @param projectId
      * @param columnId
      * @param dto
+     * @param userId    id del usuario que actualiza la columna
      * @return mensaje con la columna actualizada
      */
     @Transactional
-    public KanbaColumMessage<KanbaColumResponseDTO> update(Long projectId, Long columnId, KanbaColumRequestDTO dto) {
+    public KanbaColumMessage<KanbaColumResponseDTO> update(Long projectId, Long columnId, KanbaColumRequestDTO dto,
+            Long userId) {
 
         KanbaColumMessage<KanbaColumResponseDTO> response = new KanbaColumMessage<>();
 
@@ -141,12 +151,15 @@ public class KanbanColumnService {
             entity.setName(dto.getName());
         if (dto.getPosition() != null)
             entity.setPosition(dto.getPosition());
-       if (dto.getColor() != null)
+        if (dto.getColor() != null)
             entity.setColor(dto.getColor());
         if (dto.getIsFinal() != null)
             entity.setIsFinal(dto.getIsFinal());
 
         repository.save(entity);
+
+        activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
+                ActivityActionEnum.UPDATED, "editó la columna \"" + entity.getName() + "\"", userId);
 
         response.setData(toResponse(entity));
         response.setMessage("Se actualizo la columna correctamente");
@@ -181,10 +194,11 @@ public class KanbanColumnService {
      *
      * @param projectId
      * @param columnId
+     * @param userId    id del usuario que elimina la columna
      * @return mensaje del resultado de la operacion
      */
     @Transactional
-    public KanbaColumMessage<Void> delete(Long projectId, Long columnId) {
+    public KanbaColumMessage<Void> delete(Long projectId, Long columnId, Long userId) {
 
         KanbaColumMessage<Void> message = new KanbaColumMessage<>();
 
@@ -195,6 +209,7 @@ public class KanbanColumnService {
             return message;
         }
 
+        String nombre = columna.getName();
         Long posicionEliminada = columna.getPosition();
         repository.delete(columna);
 
@@ -206,6 +221,9 @@ public class KanbanColumnService {
                 repository.save(restante);
             }
         }
+
+        activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, columnId,
+                ActivityActionEnum.DELETED, "eliminó la columna \"" + nombre + "\"", userId);
 
         message.setMessage("Columna eliminada correctamente");
         return message;
