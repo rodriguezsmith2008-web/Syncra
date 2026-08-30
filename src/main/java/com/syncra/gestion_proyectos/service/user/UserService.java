@@ -484,6 +484,29 @@ public class UserService {
      * @param newPass     nueva contraseña
      * @return mensaje de respuesta
      */
+    public UserMessage verifyCurrentPassword(Long id, String currentPass) {
+
+        UserMessage message = new UserMessage();
+
+        if (currentPass == null || currentPass.isBlank()) {
+            throw new IllegalArgumentException("Debes ingresar tu contraseña actual.");
+        }
+
+        Optional<UsersEntity> userFound = usersRepository.findById(id);
+        if (userFound.isEmpty()) {
+            throw new EntityNotFoundException("Usuario no encontrado");
+        }
+
+        UsersEntity user = userFound.get();
+
+        if (!passwordEncoder.matches(currentPass, user.getPassword())) {
+            throw new BadCredentialsException("La contraseña actual es incorrecta");
+        }
+
+        message.setUserMessage("Contraseña actual correcta");
+        return message;
+    }
+
     public UserMessage changePassword(Long id, String currentPass, String newPass) {
 
     UserMessage message = new UserMessage();
@@ -494,10 +517,36 @@ public class UserService {
         throw new EntityNotFoundException("Usuario no encontrado");
     }
 
+    if (currentPass == null || currentPass.isBlank()) {
+        throw new IllegalArgumentException("Debes ingresar tu contraseña actual.");
+    }
+
+    if (newPass == null || newPass.isBlank()) {
+        throw new IllegalArgumentException("La nueva contraseña no puede estar vacía.");
+    }
+
+    if (newPass.length() < 8) {
+        throw new IllegalArgumentException("La nueva contraseña debe tener al menos 8 caracteres.");
+    }
+
+    if (!newPass.matches(".*[0-9].*")) {
+        throw new IllegalArgumentException("La nueva contraseña debe incluir al menos un número.");
+    }
+
+    String specialChars = "!@#$%^&*()_+=-{}[]:;\"'|,.<>/?~`";
+    boolean hasSpecialChar = newPass.chars().anyMatch(ch -> specialChars.indexOf(ch) >= 0);
+    if (!hasSpecialChar) {
+        throw new IllegalArgumentException("La nueva contraseña debe incluir al menos un carácter especial.");
+    }
+
     UsersEntity user = userFound.get();
 
     if (!passwordEncoder.matches(currentPass, user.getPassword())) {
         throw new BadCredentialsException("La contraseña actual es incorrecta");
+    }
+
+    if (passwordEncoder.matches(newPass, user.getPassword())) {
+        throw new IllegalArgumentException("La nueva contraseña debe ser diferente a la actual.");
     }
 
     user.setPassword(passwordEncoder.encode(newPass));

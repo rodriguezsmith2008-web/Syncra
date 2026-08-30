@@ -137,6 +137,11 @@ public UserMessage resetPassword(String email, String code, String newPassword) 
         return message;
     }
 
+    if (passwordEncoder.matches(newPassword, user.getPassword())) {
+        message.setUserMessage("La nueva contraseña debe ser diferente a la actual");
+        return message;
+    }
+
     // ================================
 
     user.setPassword(passwordEncoder.encode(newPassword));

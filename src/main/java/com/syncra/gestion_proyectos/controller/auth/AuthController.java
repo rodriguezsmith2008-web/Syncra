@@ -2,7 +2,10 @@ package com.syncra.gestion_proyectos.controller.auth;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import com.syncra.gestion_proyectos.dto.passwordreset.ForgotPasswordDTO;
 import com.syncra.gestion_proyectos.dto.passwordreset.ResetPasswordDTO;
@@ -23,6 +26,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 @RestController
 @RequiredArgsConstructor
+@Validated
 @RequestMapping("/auth")
 public class AuthController {
 
@@ -41,7 +45,7 @@ public class AuthController {
      */
     @RequireRole(RoleUserEnum.ADMIN)
     @PostMapping("/register")
-    public ResponseEntity<UserMessage> register(@RequestBody UserRequestDTO request) {
+    public ResponseEntity<UserMessage> register(@Valid @RequestBody UserRequestDTO request) {
 
         try {
 
@@ -68,7 +72,7 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<HttpGlobalResponse<String>> login(
-            @RequestBody UserLoginDTO request) {
+            @Valid @RequestBody UserLoginDTO request) {
 
         try {
 
@@ -131,7 +135,7 @@ public class AuthController {
      */
     @PostMapping("/forgot-password")
     public ResponseEntity<UserMessage> forgotPassword(
-            @RequestBody ForgotPasswordDTO request) {
+            @Valid @RequestBody ForgotPasswordDTO request) {
 
         try {
 
@@ -156,7 +160,7 @@ public class AuthController {
      */
     @PostMapping("/verify-code")
     public ResponseEntity<UserMessage> verifyCode(
-            @RequestBody VerifyCodeDTO request) {
+            @Valid @RequestBody VerifyCodeDTO request) {
 
         UserMessage response = passwordResetService.verifyCode(
                 request.getEmail(),
@@ -179,7 +183,7 @@ public class AuthController {
      */
     @PostMapping("/reset-password")
     public ResponseEntity<UserMessage> resetPassword(
-            @RequestBody ResetPasswordDTO request) {
+            @Valid @RequestBody ResetPasswordDTO request) {
 
         UserMessage response = passwordResetService.resetPassword(
                 request.getEmail(),
