@@ -12,6 +12,7 @@ import com.syncra.gestion_proyectos.dto.users.UserRequestDTO;
 import com.syncra.gestion_proyectos.dto.users.UserResponseDTO;
 import com.syncra.gestion_proyectos.dto.users.UserUpdateDTO;
 import com.syncra.gestion_proyectos.dto.users.UserUpdateMeDTO;
+import com.syncra.gestion_proyectos.dto.users.VerifyCurrentPasswordDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.user.UserService;
@@ -23,6 +24,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,8 +32,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequiredArgsConstructor
+@Validated
 @RequestMapping("/users")
 public class UserController {
 
@@ -198,7 +203,7 @@ public class UserController {
     @PutMapping("/me")
     public ResponseEntity<UserMessage> updateOwnProfile(
             HttpServletRequest request,
-            @RequestBody UserUpdateMeDTO update) {
+            @Valid @RequestBody UserUpdateMeDTO update) {
         try {
             Long userId = (Long) request.getAttribute("userId");
             UserMessage response = userService.updateProfile(userId, update);
@@ -219,21 +224,22 @@ public class UserController {
    @PutMapping("/me/password")
 public ResponseEntity<UserMessage> changePassword(
         HttpServletRequest request,
-        @RequestBody UserChangePasswordDTO body) {
+        @Valid @RequestBody UserChangePasswordDTO body) {
 
     Long userId = (Long) request.getAttribute("userId");
     UserMessage response = userService.changePassword(userId, body.getCurrentPassword(), body.getNewPassword());
     return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
 }
 
-/**
- * Obtiene usuarios filtrados por rol y/o término de búsqueda.
- * Ejemplo: GET /users?role=APPRENTICE&search=juan
- *
- * @param role   rol del usuario (opcional)
- * @param search texto para buscar en nombre, documento o grupo (opcional)
- * @return lista de usuarios que coinciden
- */
+    @PostMapping("/me/verify-current-password")
+    public ResponseEntity<UserMessage> verifyCurrentPassword(
+            HttpServletRequest request,
+            @Valid @RequestBody VerifyCurrentPasswordDTO body) {
+
+        Long userId = (Long) request.getAttribute("userId");
+        UserMessage response = userService.verifyCurrentPassword(userId, body.getCurrentPassword());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
 @GetMapping
 @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
 public ResponseEntity<List<UserResponseDTO>> getUsers(
