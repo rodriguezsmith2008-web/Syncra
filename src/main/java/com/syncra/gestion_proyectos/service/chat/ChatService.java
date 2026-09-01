@@ -100,7 +100,7 @@ public class ChatService {
                 .findByProjectIdAndUserOneIdOrProjectIdAndUserTwoId(projectId, userId, projectId, userId)
                 .stream()
                 .sorted(Comparator.comparing(PrivateConversationEntity::getCreatedAt))
-                .map(this::toConversationResponse)
+                .map(conversation -> toConversationResponse(conversation, userId))
                 .toList();
     }
 
@@ -128,7 +128,7 @@ public class ChatService {
                     return privateConversationRepository.save(newConversation);
                 });
 
-        return toConversationResponse(conversation);
+        return toConversationResponse(conversation, userId);
     }
 
     public List<ChatMessageResponseDTO> getPrivateMessages(
@@ -302,13 +302,33 @@ public class ChatService {
         }
     }
 
-    private ConversationResponseDTO toConversationResponse(PrivateConversationEntity entity) {
+    private ConversationResponseDTO toConversationResponse(PrivateConversationEntity entity, Long userId) {
         ConversationResponseDTO response = new ConversationResponseDTO();
         response.setId(entity.getId());
         response.setProjectId(entity.getProjectId());
         response.setUserOneId(entity.getUserOneId());
         response.setUserTwoId(entity.getUserTwoId());
+        response.setUnreadCount(privateMessageRepository
+            .countByConversationIdAndSenderIdNotAndReadFalse(entity.getId(), userId));
         response.setCreatedAt(entity.getCreatedAt());
         return response;
     }
+    public long countUnreadPrivateMessages(
+        Long projectId,
+        Long userId,
+        Long conversationId) {
+
+    validateMember(projectId, userId);
+
+    PrivateConversationEntity conversation =
+            getConversation(projectId, conversationId);
+
+    validateConversationMember(conversation, userId);
+
+    return privateMessageRepository
+            .countByConversationIdAndSenderIdNotAndReadFalse(
+                    conversationId,
+                    userId
+            );
+}
 }

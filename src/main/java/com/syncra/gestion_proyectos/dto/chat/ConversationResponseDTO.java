@@ -11,5 +11,6 @@ public class ConversationResponseDTO {
     private Long projectId;
     private Long userOneId;
     private Long userTwoId;
+    private long unreadCount;
     private LocalDateTime createdAt;
 }

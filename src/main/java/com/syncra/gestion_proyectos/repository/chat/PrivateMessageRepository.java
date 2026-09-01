@@ -9,4 +9,8 @@ import com.syncra.gestion_proyectos.entity.chat.PrivateMessageEntity;
 public interface PrivateMessageRepository extends JpaRepository<PrivateMessageEntity, Long> {
 
     List<PrivateMessageEntity> findByConversationIdOrderByCreatedAtAsc(Long conversationId);
+    long countByConversationIdAndSenderIdNotAndReadFalse(
+        Long conversationId,
+        Long senderId
+);
 }
