@@ -10,9 +10,11 @@ public class DocumentUpdateDTO {
 
     private String title;
     private String content;
+    private String coverImageUrl;
     private Long sprintId;
     private Integer quarter;
 
+    private boolean coverImageUrlProvided;
     private boolean sprintIdProvided;
     private boolean quarterProvided;
 
@@ -20,6 +22,12 @@ public class DocumentUpdateDTO {
     public void setSprintId(Long sprintId) {
         this.sprintId = sprintId;
         this.sprintIdProvided = true;
+    }
+
+    @JsonSetter("coverImageUrl")
+    public void setCoverImageUrl(String coverImageUrl) {
+        this.coverImageUrl = coverImageUrl;
+        this.coverImageUrlProvided = true;
     }
 
     @JsonSetter("quarter")

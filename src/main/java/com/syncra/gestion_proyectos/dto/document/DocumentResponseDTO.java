@@ -16,6 +16,7 @@ public class DocumentResponseDTO {
     private Long templateId;
     private String title;
     private String content;
+    private String coverImageUrl;
     private DocumentStatusEnum status;
     private DocumentTypeEnum documentType;
     private Long createdBy;

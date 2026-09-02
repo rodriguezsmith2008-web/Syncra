@@ -212,6 +212,14 @@ public class DocumentService {
             appendChange(changes, describirCambioContenido(previousContent, dto.getContent()));
         }
 
+        if (dto.isCoverImageUrlProvided()
+                && !java.util.Objects.equals(dto.getCoverImageUrl(), documentToUpdate.getCoverImageUrl())) {
+            documentToUpdate.setCoverImageUrl(dto.getCoverImageUrl());
+            appendChange(changes, dto.getCoverImageUrl() == null
+                    ? "eliminó la imagen de portada"
+                    : "actualizó la imagen de portada");
+        }
+
         if (dto.isSprintIdProvided()) {
             documentToUpdate.setSprintId(dto.getSprintId());
         }
@@ -400,6 +408,7 @@ public class DocumentService {
     response.setTemplateId(documentEntity.getTemplateId());
     response.setTitle(documentEntity.getTitle());
     response.setContent(documentEntity.getContent());
+    response.setCoverImageUrl(documentEntity.getCoverImageUrl());
     response.setStatus(documentEntity.getStatus());
     response.setDocumentType(documentEntity.getDocumentType());
     response.setCreatedBy(documentEntity.getCreatedBy());
