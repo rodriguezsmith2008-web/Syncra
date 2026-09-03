@@ -77,6 +77,9 @@ public class DocumentEntity {
     @Column(name = "quarter")
     private Integer quarter;
 
+    @Column(name = "meeting_type", length = 50)
+    private String meetingType;
+
     @PrePersist
     public void prePersist() {
         LocalDateTime now = LocalDateTime.now();

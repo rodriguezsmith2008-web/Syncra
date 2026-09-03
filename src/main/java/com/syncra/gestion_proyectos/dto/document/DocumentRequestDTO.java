@@ -14,4 +14,5 @@ public class DocumentRequestDTO {
     private DocumentTypeEnum documentType;
     private Long sprintId;
     private Integer quarter;
+    private String meetingType;
 }

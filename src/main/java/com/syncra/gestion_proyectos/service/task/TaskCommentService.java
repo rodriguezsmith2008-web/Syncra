@@ -8,9 +8,13 @@ import org.springframework.stereotype.Service;
 import com.syncra.gestion_proyectos.dto.task.TaskCommentRequestDTO;
 import com.syncra.gestion_proyectos.dto.task.TaskCommentResponseDTO;
 import com.syncra.gestion_proyectos.entity.task.TaskCommentEntity;
+import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 import com.syncra.gestion_proyectos.repository.task.TaskCommentRepository;
+import com.syncra.gestion_proyectos.repository.task.TaskRepository;
+import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
 import jakarta.transaction.Transactional;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -18,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 public class TaskCommentService {
 
     private final TaskCommentRepository repository;
+    private final TaskRepository taskRepository;
+    private final NotificationService notificationService;
 
     /**
      * Obtiene todos los comentarios de una tarea
@@ -55,7 +61,41 @@ public class TaskCommentService {
 
         repository.save(entity);
 
+        TaskEntity task = taskRepository.findById(taskId).orElse(null);
+        if (task != null && task.getAssignedTo() != null && !task.getAssignedTo().equals(userId)) {
+            notificationService.crear(
+                task.getAssignedTo(),
+                userId,
+                task.getProjectId(),
+                taskId,
+                null,
+                entity.getId(),
+                "TASK_COMMENT",
+                "Nuevo comentario en la tarea: " + task.getTitle());
+        }
+
         return toResponse(entity);
+    }
+
+    @Transactional
+    public TaskCommentResponseDTO updateComment(Long taskId, Long commentId, Long userId, TaskCommentRequestDTO dto) {
+        TaskCommentEntity entity = findOwnedComment(taskId, commentId, userId);
+        entity.setContent(dto.getContent());
+        return toResponse(repository.save(entity));
+    }
+
+    @Transactional
+    public void deleteComment(Long taskId, Long commentId, Long userId) {
+        repository.delete(findOwnedComment(taskId, commentId, userId));
+    }
+
+    private TaskCommentEntity findOwnedComment(Long taskId, Long commentId, Long userId) {
+        TaskCommentEntity entity = repository.findById(commentId)
+                .orElseThrow(() -> new EntityNotFoundException("Comentario no encontrado"));
+        if (!entity.getTaskId().equals(taskId) || !entity.getUserId().equals(userId)) {
+            throw new EntityNotFoundException("Comentario no encontrado");
+        }
+        return entity;
     }
 
     /**

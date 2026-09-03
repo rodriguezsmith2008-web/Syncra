@@ -28,4 +28,5 @@ public class DocumentResponseDTO {
     private Long sprintId;
     private String sprintName;
     private Integer quarter;
+    private String meetingType;
 }

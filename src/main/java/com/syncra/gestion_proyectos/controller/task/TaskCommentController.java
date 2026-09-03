@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,5 +54,20 @@ public class TaskCommentController {
             @RequestBody TaskCommentRequestDTO dto, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return ResponseEntity.status(HttpStatus.CREATED).body(service.addComment(taskId, userId, dto));
+    }
+
+    @PutMapping("/{commentId}")
+    public ResponseEntity<TaskCommentResponseDTO> updateComment(@PathVariable Long taskId,
+            @PathVariable Long commentId, @RequestBody TaskCommentRequestDTO dto, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return ResponseEntity.ok(service.updateComment(taskId, commentId, userId, dto));
+    }
+
+    @DeleteMapping("/{commentId}")
+    public ResponseEntity<Void> deleteComment(@PathVariable Long taskId, @PathVariable Long commentId,
+            HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        service.deleteComment(taskId, commentId, userId);
+        return ResponseEntity.noContent().build();
     }
 }

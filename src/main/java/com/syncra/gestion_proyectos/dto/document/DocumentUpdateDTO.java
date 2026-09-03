@@ -13,10 +13,12 @@ public class DocumentUpdateDTO {
     private String coverImageUrl;
     private Long sprintId;
     private Integer quarter;
+    private String meetingType;
 
     private boolean coverImageUrlProvided;
     private boolean sprintIdProvided;
     private boolean quarterProvided;
+    private boolean meetingTypeProvided;
 
     @JsonSetter("sprintId")
     public void setSprintId(Long sprintId) {
@@ -35,4 +37,11 @@ public class DocumentUpdateDTO {
         this.quarter = quarter;
         this.quarterProvided = true;
     }
+
+    @JsonSetter("meetingType")
+    public void setMeetingType(String meetingType) {
+        this.meetingType = meetingType;
+        this.meetingTypeProvided = true;
+    }
+
 }

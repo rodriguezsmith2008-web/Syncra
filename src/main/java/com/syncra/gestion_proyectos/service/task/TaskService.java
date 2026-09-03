@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.service.task;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
@@ -173,6 +174,9 @@ public class TaskService {
         }
 
         Long asignadoAnterior = entity.getAssignedTo();
+        String tituloAnterior = entity.getTitle();
+        String descripcionAnterior = entity.getDescription();
+        java.time.LocalDate fechaAnterior = entity.getDueDate();
 
         if (dto.getTitle() != null)
             entity.setTitle(dto.getTitle());
@@ -192,6 +196,18 @@ public class TaskService {
         }
 
         repository.save(entity);
+
+        if (dto.getTitle() != null && !Objects.equals(tituloAnterior, entity.getTitle())) {
+            taskHistoryService.registrar(taskId, userId, "TITLE_UPDATED", tituloAnterior, entity.getTitle());
+        }
+        if (dto.getDescription() != null && !Objects.equals(descripcionAnterior, entity.getDescription())) {
+            taskHistoryService.registrar(taskId, userId, "DESCRIPTION_UPDATED", descripcionAnterior, entity.getDescription());
+        }
+        if (!Objects.equals(fechaAnterior, entity.getDueDate())) {
+            taskHistoryService.registrar(taskId, userId, "DATE_UPDATED",
+                    fechaAnterior != null ? fechaAnterior.toString() : null,
+                    entity.getDueDate() != null ? entity.getDueDate().toString() : null);
+        }
 
         if (dto.getAssignedTo() != null && !dto.getAssignedTo().equals(asignadoAnterior)) {
 
@@ -252,9 +268,6 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
             }
         }
 
-        taskHistoryService.registrar(taskId, userId, "MOVED", columnaAnterior.toString(),
-                columnaDestino.toString());
-
        if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
     notificationService.crear(entity.getAssignedTo(), userId, entity.getProjectId(), entity.getId(), null, null,
             "TASK_MOVED", "La tarea '" + entity.getTitle() + "' cambio de columna");
@@ -282,6 +295,10 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
     entity.setColumnId(columnaDestino);
     entity.setPosition(posicionDestino);
     repository.save(entity);
+
+    if (!columnaAnterior.equals(columnaDestino) || !posicionAnterior.equals(posicionDestino)) {
+        taskHistoryService.registrar(taskId, userId, "MOVED", posicionAnterior.toString(), posicionDestino.toString());
+    }
 
     return toResponse(entity);
 }

@@ -141,6 +141,7 @@ public class DocumentService {
         newDocument.setUpdatedBy(createdBy);
         newDocument.setSprintId(dto.getSprintId());
         newDocument.setQuarter(dto.getQuarter());
+        newDocument.setMeetingType(dto.getMeetingType());
 
         Optional<DocTemplateEntity> templateFound = Optional.empty();
 
@@ -227,6 +228,11 @@ public class DocumentService {
         if (dto.isQuarterProvided()) {
             documentToUpdate.setQuarter(dto.getQuarter());
         }
+
+        if (dto.isMeetingTypeProvided()) {
+            documentToUpdate.setMeetingType(dto.getMeetingType());
+        }
+
 
         documentToUpdate.setUpdatedBy(updatedBy);
 
@@ -419,6 +425,7 @@ public class DocumentService {
     response.setUpdatedAt(documentEntity.getUpdatedAt());
     response.setSprintId(documentEntity.getSprintId());
     response.setQuarter(documentEntity.getQuarter());
+    response.setMeetingType(documentEntity.getMeetingType());
 
     if (documentEntity.getSprintId() != null && sprintsById != null) {
         SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
