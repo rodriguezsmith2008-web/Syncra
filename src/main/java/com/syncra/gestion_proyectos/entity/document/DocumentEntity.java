@@ -38,6 +38,10 @@ public class DocumentEntity {
     @Column(name = "content", columnDefinition = "LONGTEXT")
     private String content;
 
+    /** URL pública de la imagen de portada almacenada en Cloudinary. */
+    @Column(name = "cover_image_url", length = 1000)
+    private String coverImageUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DocumentStatusEnum status = DocumentStatusEnum.DRAFT;
@@ -72,6 +76,9 @@ public class DocumentEntity {
 
     @Column(name = "quarter")
     private Integer quarter;
+
+    @Column(name = "meeting_type", length = 50)
+    private String meetingType;
 
     @PrePersist
     public void prePersist() {

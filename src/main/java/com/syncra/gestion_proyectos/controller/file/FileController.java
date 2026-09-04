@@ -58,6 +58,14 @@ public class FileController {
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         try {
+            if (file.isEmpty() || file.getContentType() == null || !file.getContentType().startsWith("image/")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "El archivo debe ser una imagen válida."));
+            }
+            if (file.getSize() > 10 * 1024 * 1024) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "La imagen no puede superar los 10 MB."));
+            }
             Long userId = (Long) request.getAttribute("userId");
             FileResponseDTO uploaded = service.upload(projectId, userId, file);
             return ResponseEntity.ok(Map.of("url", uploaded.getUrl()));

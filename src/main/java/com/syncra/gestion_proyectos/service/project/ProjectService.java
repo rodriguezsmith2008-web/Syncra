@@ -1,6 +1,9 @@
 package com.syncra.gestion_proyectos.service.project;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +14,7 @@ import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
@@ -23,8 +27,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectService {
 
-    // Repositorio utilizado para acceder y gestionar la información de los
-    // proyectos almacenados en la base de datos
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UsersRepository userRepository;
@@ -37,33 +39,7 @@ public class ProjectService {
      * @return lista de proyectos
      */
     public List<ProjectResponseDTO> getAll() {
-        return projectRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
-
-    /**
-     * Obtiene un proyecto a partir de su id
-     * 
-     * @param id id del proyecto
-     * @return información del proyecto solicitado
-     */
-    public ProjectResponseDTO getById(Long id) {
-        return toResponse(findOrThrow(id));
-    }
-
-    /**
-     * Obtiene todos los proyectos por estado.
-     *
-     * @param status estado del proyecto
-     * @return lista de proyectos con el estado indicado
-     */
-    public List<ProjectResponseDTO> getByStatus(ProjectStatusEnum status) {
-        return projectRepository.findByStatus(status)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return toResponseList(projectRepository.findAll());
     }
 
     /**
@@ -73,9 +49,23 @@ public class ProjectService {
      * @param createdBy id del usuario creador
      * @return información del proyecto creado
      */
+    public ProjectResponseDTO getById(Long id) {
+
+        ProjectEntity entity = findOrThrow(id);
+
+        Map<Long, UsersEntity> creators = userRepository.findAllById(List.of(entity.getCreatedBy())).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
+        return toResponse(entity, creators);
+    }
+
+    public List<ProjectResponseDTO> getByStatus(ProjectStatusEnum status) {
+        return toResponseList(projectRepository.findByStatus(status));
+    }
+
     @Transactional
     public ProjectResponseDTO create(ProjectRequestDTO dto, Long createdBy) {
-        // Validar fechas
+
         if (dto.getStartDate() != null && dto.getEndDate() != null) {
             if (dto.getStartDate().isAfter(dto.getEndDate())) {
                 throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
@@ -89,22 +79,21 @@ public class ProjectService {
         entity.setStartDate(dto.getStartDate());
         entity.setEndDate(dto.getEndDate());
         entity.setCreatedBy(createdBy);
-        // El estado se asigna por defecto en la entidad (IN_PROGRESS)
 
         ProjectEntity saved = projectRepository.save(entity);
 
-        // Agregar al creador como miembro del proyecto (rol INSTRUCTOR automáticamente)
-        // Esto debe estar dentro de la misma transacción
         try {
             projectMemberService.addMember(saved.getId(), createdBy);
         } catch (Exception e) {
             log.warn("No se pudo agregar al creador como miembro: {}", e.getMessage());
         }
 
-        return toResponse(saved);
-    }
+        Map<Long, UsersEntity> creators = userRepository.findAllById(List.of(createdBy)).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
 
-    /**
+        return toResponse(saved, creators);
+    }
+ /**
      * Actualiza la información de un proyecto existente
      * 
      * @param id
@@ -126,19 +115,19 @@ public class ProjectService {
             entity.setStartDate(dto.getStartDate());
         if (dto.getEndDate() != null)
             entity.setEndDate(dto.getEndDate());
-        return toResponse(projectRepository.save(entity));
+
+        ProjectEntity saved = projectRepository.save(entity);
+
+        Map<Long, UsersEntity> creators = userRepository.findAllById(List.of(saved.getCreatedBy())).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
+        return toResponse(saved, creators);
     }
 
-    /**
-     * Elimina un proyecto del sistema
-     * 
-     * @param id
-     */
     @Transactional
     public void delete(Long id) {
         projectRepository.delete(findOrThrow(id));
     }
-
     /**
      * Actualiza el estado de un proyecto
      * 
@@ -150,27 +139,35 @@ public class ProjectService {
     public ProjectResponseDTO updateStatus(Long id, ProjectStatusEnum status) {
         ProjectEntity entity = findOrThrow(id);
         entity.setStatus(status);
-        return toResponse(projectRepository.save(entity));
+        ProjectEntity saved = projectRepository.save(entity);
+
+        Map<Long, UsersEntity> creators = userRepository.findAllById(List.of(saved.getCreatedBy())).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
+        return toResponse(saved, creators);
     }
 
-    /**
-     * Busca un proyecto por su id
-     * 
-     * @param id
-     * @return entidad del proyecto encontrada
-     */
     private ProjectEntity findOrThrow(Long id) {
         return projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found: " + id));
     }
 
-    /**
-     * Convierte una entidad projectentity en un dto de respuesta
-     * 
-     * @param e entidad del proyecto
-     * @return dto con la información del proyecto
-     */
-    private ProjectResponseDTO toResponse(ProjectEntity e) {
+    private List<ProjectResponseDTO> toResponseList(List<ProjectEntity> projects) {
+
+        List<Long> creatorIds = projects.stream()
+                .map(ProjectEntity::getCreatedBy)
+                .distinct()
+                .toList();
+
+        Map<Long, UsersEntity> creatorsById = userRepository.findAllById(creatorIds).stream()
+                .collect(Collectors.toMap(UsersEntity::getId, u -> u));
+
+        return projects.stream()
+                .map(p -> toResponse(p, creatorsById))
+                .toList();
+    }
+
+    private ProjectResponseDTO toResponse(ProjectEntity e, Map<Long, UsersEntity> creatorsById) {
         ProjectResponseDTO r = new ProjectResponseDTO();
         r.setId(e.getId());
         r.setName(e.getName());
@@ -180,40 +177,24 @@ public class ProjectService {
         r.setStartDate(e.getStartDate());
         r.setEndDate(e.getEndDate());
         r.setCreatedBy(e.getCreatedBy());
-        r.setCreatedByName(resolveCreatorName(e.getCreatedBy()));
         r.setCreatedAt(e.getCreatedAt());
+
+        UsersEntity creator = creatorsById.get(e.getCreatedBy());
+        r.setCreatedByName(creator != null
+                ? creator.getFirstName() + " " + creator.getLastName()
+                : "Usuario desconocido");
+
         return r;
     }
 
-    /**
-     * Resuelve el nombre completo del usuario creador a partir de su id
-     *
-     * @param userId id del usuario
-     * @return nombre completo, o "Usuario desconocido" si no se encuentra
-     */
-    private String resolveCreatorName(Long userId) {
-        if (userId == null) {
-            return null;
-        }
-
-        return userRepository.findById(userId)
-                .map(user -> user.getFirstName() + " " + user.getLastName())
-                .orElse("Usuario desconocido");
-    }
-
-    /**
-     * Obtiene los proyectos en los que el usuario autenticado es miembro
-     * 
-     * @param userId id del usuario autenticado (viene del token JWT)
-     * @return lista de proyectos del usuario
-     */
     public List<ProjectResponseDTO> getMine(Long userId) {
-        return projectMemberRepository.findByIdUserId(userId)
-                .stream()
+
+        List<ProjectEntity> projects = projectMemberRepository.findByIdUserId(userId).stream()
                 .map(member -> projectRepository.findById(member.getId().getProjectId()))
                 .filter(java.util.Optional::isPresent)
                 .map(java.util.Optional::get)
-                .map(this::toResponse)
                 .toList();
+
+        return toResponseList(projects);
     }
 }

@@ -52,8 +52,8 @@ public class ExternalLinkService {
 
         ExternalLinkEntity saved = linkRepository.save(entity);
 
-        notificarMiembros(projectId, addedBy, "RESOURCE_ADDED",
-                "Se agregó un nuevo recurso: " + saved.getTitle());
+        notificarMiembros(projectId, addedBy, saved.getId(), "RESOURCE_ADDED",
+            "Se agregó un nuevo recurso: " + saved.getTitle());
 
         activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, saved.getId(),
                 ActivityActionEnum.CREATED, "agregó el recurso \"" + saved.getTitle() + "\"", addedBy);
@@ -74,8 +74,8 @@ public class ExternalLinkService {
 
         ExternalLinkEntity saved = linkRepository.save(entity);
 
-        notificarMiembros(projectId, userId, "RESOURCE_UPDATED",
-                "Se actualizó el recurso: " + saved.getTitle());
+        notificarMiembros(projectId, userId, saved.getId(), "RESOURCE_UPDATED",
+            "Se actualizó el recurso: " + saved.getTitle());
 
         activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, saved.getId(),
                 ActivityActionEnum.UPDATED, "editó el recurso \"" + saved.getTitle() + "\"", userId);
@@ -93,14 +93,14 @@ public class ExternalLinkService {
 
         linkRepository.delete(entity);
 
-        notificarMiembros(projectId, userId, "RESOURCE_DELETED",
-                "Se eliminó el recurso: " + title);
+        notificarMiembros(projectId, userId, linkId, "RESOURCE_DELETED",
+            "Se eliminó el recurso: " + title);
 
         activityLogService.log(projectId, ActivityEntityTypeEnum.EXTERNAL_LINK, linkId,
                 ActivityActionEnum.DELETED, "eliminó el recurso \"" + title + "\"", userId);
     }
 
-    private void notificarMiembros(Long projectId, Long actorId, String type, String message) {
+    private void notificarMiembros(Long projectId, Long actorId, Long resourceId, String type, String message) {
 
         List<ProjectMemberEntity> members = projectMemberRepository.findByIdProjectId(projectId);
 
@@ -109,7 +109,7 @@ public class ExternalLinkService {
             Long memberId = member.getId().getUserId();
 
             if (!memberId.equals(actorId)) {
-                notificationService.crear(memberId, actorId, projectId, null, null, null, type, message);
+                notificationService.crear(memberId, actorId, projectId, null, resourceId, null, type, message);
             }
         }
     }
