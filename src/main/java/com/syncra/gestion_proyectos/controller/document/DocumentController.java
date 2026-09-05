@@ -15,6 +15,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.SectionMatchResponseDTO;
 import com.syncra.gestion_proyectos.dto.activity.ActivityLogResponseDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
@@ -127,6 +128,17 @@ public class DocumentController {
 
         return ResponseEntity.ok(
                 documentService.searchMeetingMinutes(projectId, title)
+        );
+    }
+
+    
+    @GetMapping("/sections")
+    public ResponseEntity<List<SectionMatchResponseDTO>> findSectionMatches(
+            @PathVariable Long projectId,
+            @RequestParam(name = "sectionKey") List<String> sectionKeys) {
+
+        return ResponseEntity.ok(
+                documentService.findSectionMatches(projectId, sectionKeys)
         );
     }
 

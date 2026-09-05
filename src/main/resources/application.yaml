@@ -23,6 +23,11 @@ spring:
           starttls:
             enable: true
 
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
   jpa:
     open-in-view: false
     hibernate:
@@ -52,7 +57,7 @@ server:
 security:
   jwt:
     secret-key: ${JWT_SECRET}
-    token-expiration: ${JWT_EXPIRATION:600000}
+    token-expiration: ${JWT_EXPIRATION:1200000}
 
 cloudinary:
   url: ${CLOUDINARY_URL}

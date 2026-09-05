@@ -25,6 +25,8 @@ import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.dto.document.SectionMatchResponseDTO;
+import com.syncra.gestion_proyectos.util.SectionContentUtil;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
 import com.syncra.gestion_proyectos.entity.sprint.SprintEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
@@ -76,9 +78,8 @@ public class DocumentService {
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
-    response.add(toResponse(documentEntity, null));
-}
-
+            response.add(toResponse(documentEntity, null));
+        }
 
         return response;
     }
@@ -89,28 +90,26 @@ public class DocumentService {
      * @param id
      * @return documento encontrado, null si no existe o fue eliminado
      */
-   public DocumentResponseDTO getById(Long id) {
+    public DocumentResponseDTO getById(Long id) {
 
-    Optional<DocumentEntity> documentFound =
-            documentRepository.findByIdAndDeletedAtIsNull(id);
+        Optional<DocumentEntity> documentFound = documentRepository.findByIdAndDeletedAtIsNull(id);
 
-    if (documentFound.isEmpty()) {
-        return null;
+        if (documentFound.isEmpty()) {
+            return null;
+        }
+
+        DocumentEntity entity = documentFound.get();
+
+        Map<Long, SprintEntity> sprintsById = null;
+
+        if (entity.getSprintId() != null) {
+            sprintsById = sprintRepository.findById(entity.getSprintId())
+                    .map(sprint -> Map.of(entity.getSprintId(), sprint))
+                    .orElse(null);
+        }
+
+        return toResponse(entity, sprintsById);
     }
-
-    DocumentEntity entity = documentFound.get();
-
-    Map<Long, SprintEntity> sprintsById = null;
-
-    if (entity.getSprintId() != null) {
-        sprintsById = sprintRepository.findById(entity.getSprintId())
-                .map(sprint -> Map.of(entity.getSprintId(), sprint))
-                .orElse(null);
-    }
-
-    return toResponse(entity, sprintsById);
-}
-
 
     /**
      * Crea un nuevo documento en un proyecto
@@ -166,11 +165,12 @@ public class DocumentService {
                 ActivityActionEnum.CREATED, "creó el documento \"" + saved.getTitle() + "\"", createdBy);
 
         if (saved.getParentDocumentId() != null) {
-            documentRepository.findByIdAndDeletedAtIsNull(saved.getParentDocumentId()).ifPresent(parent ->
-                activityLogService.log(parent.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, parent.getId(),
-                    ActivityActionEnum.UPDATED,
-                    "añadió el subdocumento \"" + saved.getTitle() + "\"",
-                    createdBy));
+            documentRepository.findByIdAndDeletedAtIsNull(saved.getParentDocumentId())
+                    .ifPresent(parent -> activityLogService.log(parent.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                            parent.getId(),
+                            ActivityActionEnum.UPDATED,
+                            "añadió el subdocumento \"" + saved.getTitle() + "\"",
+                            createdBy));
         }
 
         return toResponse(saved, null);
@@ -233,7 +233,6 @@ public class DocumentService {
             documentToUpdate.setMeetingType(dto.getMeetingType());
         }
 
-
         documentToUpdate.setUpdatedBy(updatedBy);
 
         documentRepository.save(documentToUpdate);
@@ -241,7 +240,7 @@ public class DocumentService {
         String description = changes.length() == 0 ? "actualizó los datos del documento" : changes.toString();
         activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
                 documentToUpdate.getId(), ActivityActionEnum.UPDATED,
-            description, updatedBy);
+                description, updatedBy);
 
         message.setMessage("Documento actualizado correctamente.");
         return message;
@@ -341,10 +340,10 @@ public class DocumentService {
         documentCommentRepository.save(newComment);
 
         activityLogService.log(document.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, documentId,
-            ActivityActionEnum.UPDATED,
-            (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")
-                + " en el documento \"" + document.getTitle() + "\"",
-            userId);
+                ActivityActionEnum.UPDATED,
+                (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")
+                        + " en el documento \"" + document.getTitle() + "\"",
+                userId);
 
         if (dto.getParentCommentId() != null) {
 
@@ -389,10 +388,9 @@ public class DocumentService {
                         title);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-       for (DocumentEntity documentEntity : documentList) {
-    response.add(toResponse(documentEntity, null));
-}
-
+        for (DocumentEntity documentEntity : documentList) {
+            response.add(toResponse(documentEntity, null));
+        }
 
         return response;
     }
@@ -403,41 +401,40 @@ public class DocumentService {
      * @param documentEntity entidad a convertir
      * @return dto con la información del documento
      */
-  private DocumentResponseDTO toResponse(
-        DocumentEntity documentEntity,
-        Map<Long, SprintEntity> sprintsById) {
+    private DocumentResponseDTO toResponse(
+            DocumentEntity documentEntity,
+            Map<Long, SprintEntity> sprintsById) {
 
-    DocumentResponseDTO response = new DocumentResponseDTO();
+        DocumentResponseDTO response = new DocumentResponseDTO();
 
-    response.setId(documentEntity.getId());
-    response.setProjectId(documentEntity.getProjectId());
-    response.setTemplateId(documentEntity.getTemplateId());
-    response.setTitle(documentEntity.getTitle());
-    response.setContent(documentEntity.getContent());
-    response.setCoverImageUrl(documentEntity.getCoverImageUrl());
-    response.setStatus(documentEntity.getStatus());
-    response.setDocumentType(documentEntity.getDocumentType());
-    response.setCreatedBy(documentEntity.getCreatedBy());
-    response.setUpdatedBy(documentEntity.getUpdatedBy());
-    response.setParentDocumentId(documentEntity.getParentDocumentId());
-    response.setSortOrder(documentEntity.getSortOrder());
-    response.setCreatedAt(documentEntity.getCreatedAt());
-    response.setUpdatedAt(documentEntity.getUpdatedAt());
-    response.setSprintId(documentEntity.getSprintId());
-    response.setQuarter(documentEntity.getQuarter());
-    response.setMeetingType(documentEntity.getMeetingType());
+        response.setId(documentEntity.getId());
+        response.setProjectId(documentEntity.getProjectId());
+        response.setTemplateId(documentEntity.getTemplateId());
+        response.setTitle(documentEntity.getTitle());
+        response.setContent(documentEntity.getContent());
+        response.setCoverImageUrl(documentEntity.getCoverImageUrl());
+        response.setStatus(documentEntity.getStatus());
+        response.setDocumentType(documentEntity.getDocumentType());
+        response.setCreatedBy(documentEntity.getCreatedBy());
+        response.setUpdatedBy(documentEntity.getUpdatedBy());
+        response.setParentDocumentId(documentEntity.getParentDocumentId());
+        response.setSortOrder(documentEntity.getSortOrder());
+        response.setCreatedAt(documentEntity.getCreatedAt());
+        response.setUpdatedAt(documentEntity.getUpdatedAt());
+        response.setSprintId(documentEntity.getSprintId());
+        response.setQuarter(documentEntity.getQuarter());
+        response.setMeetingType(documentEntity.getMeetingType());
 
-    if (documentEntity.getSprintId() != null && sprintsById != null) {
-        SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
+        if (documentEntity.getSprintId() != null && sprintsById != null) {
+            SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
 
-        if (sprint != null) {
-            response.setSprintName(sprint.getName());
+            if (sprint != null) {
+                response.setSprintName(sprint.getName());
+            }
         }
+
+        return response;
     }
-
-    return response;
-}
-
 
     /**
      * Convierte una entidad de comentario en un dto de respuesta
@@ -493,29 +490,29 @@ public class DocumentService {
      * @param dto        estado nuevo
      * @return documento actualizado, null si no existe
      */
-   @Transactional
-public DocumentResponseDTO updateStatus(
-        Long documentId,
-    DocumentStatusUpdateDTO dto,
-    Long updatedBy) {
+    @Transactional
+    public DocumentResponseDTO updateStatus(
+            Long documentId,
+            DocumentStatusUpdateDTO dto,
+            Long updatedBy) {
 
-    DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
+        DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
 
-    if (entity == null) {
-        return null;
-    }
+        if (entity == null) {
+            return null;
+        }
 
-    entity.setStatus(dto.getStatus());
+        entity.setStatus(dto.getStatus());
 
-    DocumentEntity saved = documentRepository.save(entity);
+        DocumentEntity saved = documentRepository.save(entity);
 
         activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
-            ActivityActionEnum.UPDATED,
-            "cambió el estado del documento a " + dto.getStatus().name(),
-            updatedBy);
+                ActivityActionEnum.UPDATED,
+                "cambió el estado del documento a " + dto.getStatus().name(),
+                updatedBy);
 
-    return toResponse(saved, null);
-}
+        return toResponse(saved, null);
+    }
 
     private void appendChange(StringBuilder changes, String change) {
         if (changes.length() > 0) {
@@ -537,14 +534,22 @@ public DocumentResponseDTO updateStatus(
         int currentFiles = countOccurrences(current, "data-file-card");
         List<String> changes = new ArrayList<>();
 
-        if (currentImages > previousImages) changes.add("añadió " + (currentImages - previousImages) + " imagen(es)");
-        if (currentImages < previousImages) changes.add("eliminó " + (previousImages - currentImages) + " imagen(es)");
-        if (currentTables > previousTables) changes.add("añadió " + (currentTables - previousTables) + " tabla(s)");
-        if (currentTables < previousTables) changes.add("eliminó " + (previousTables - currentTables) + " tabla(s)");
-        if (currentDocuments > previousDocuments) changes.add("añadió " + (currentDocuments - previousDocuments) + " subdocumento(s) enlazado(s)");
-        if (currentDocuments < previousDocuments) changes.add("eliminó " + (previousDocuments - currentDocuments) + " subdocumento(s) enlazado(s)");
-        if (currentFiles > previousFiles) changes.add("añadió " + (currentFiles - previousFiles) + " archivo(s) adjunto(s)");
-        if (currentFiles < previousFiles) changes.add("eliminó " + (previousFiles - currentFiles) + " archivo(s) adjunto(s)");
+        if (currentImages > previousImages)
+            changes.add("añadió " + (currentImages - previousImages) + " imagen(es)");
+        if (currentImages < previousImages)
+            changes.add("eliminó " + (previousImages - currentImages) + " imagen(es)");
+        if (currentTables > previousTables)
+            changes.add("añadió " + (currentTables - previousTables) + " tabla(s)");
+        if (currentTables < previousTables)
+            changes.add("eliminó " + (previousTables - currentTables) + " tabla(s)");
+        if (currentDocuments > previousDocuments)
+            changes.add("añadió " + (currentDocuments - previousDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentDocuments < previousDocuments)
+            changes.add("eliminó " + (previousDocuments - currentDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentFiles > previousFiles)
+            changes.add("añadió " + (currentFiles - previousFiles) + " archivo(s) adjunto(s)");
+        if (currentFiles < previousFiles)
+            changes.add("eliminó " + (previousFiles - currentFiles) + " archivo(s) adjunto(s)");
         agregarNombres(changes, previous, current, "data-titulo=", "página(s)");
         agregarNombres(changes, previous, current, "data-file-name=", "archivo(s)");
 
@@ -559,13 +564,16 @@ public DocumentResponseDTO updateStatus(
         registrarDiferencia(changes, previous, current, "<em", "texto(s) en cursiva", "texto(s) en cursiva");
         registrarDiferencia(changes, previous, current, "<u", "texto(s) subrayado(s)", "texto(s) subrayado(s)");
         registrarDiferencia(changes, previous, current, "<s", "texto(s) tachado(s)", "texto(s) tachado(s)");
-        registrarDiferencia(changes, previous, current, "data-text-align=", "alineación(es) de texto", "alineación(es) de texto");
-        registrarDiferencia(changes, previous, current, "background-color", "resaltado(s) de texto", "resaltado(s) de texto");
+        registrarDiferencia(changes, previous, current, "data-text-align=", "alineación(es) de texto",
+                "alineación(es) de texto");
+        registrarDiferencia(changes, previous, current, "background-color", "resaltado(s) de texto",
+                "resaltado(s) de texto");
         registrarDiferencia(changes, previous, current, "color:", "color(es) de texto", "color(es) de texto");
 
         String previousText = extraerTexto(previous);
         String currentText = extraerTexto(current);
-        if (!previousText.equals(currentText)) changes.add("modificó el texto y formato del contenido");
+        if (!previousText.equals(currentText))
+            changes.add("modificó el texto y formato del contenido");
         return changes.isEmpty() ? "modificó el contenido del documento" : String.join(", ", changes);
     }
 
@@ -580,8 +588,10 @@ public DocumentResponseDTO updateStatus(
             String token, String addedLabel, String removedLabel) {
         int before = countOccurrences(previous, token);
         int after = countOccurrences(current, token);
-        if (after > before) changes.add("añadió " + (after - before) + " " + addedLabel);
-        if (after < before) changes.add("eliminó " + (before - after) + " " + removedLabel);
+        if (after > before)
+            changes.add("añadió " + (after - before) + " " + addedLabel);
+        if (after < before)
+            changes.add("eliminó " + (before - after) + " " + removedLabel);
     }
 
     private void agregarNombres(List<String> changes, String previous, String current,
@@ -592,8 +602,10 @@ public DocumentResponseDTO updateStatus(
         added.removeAll(before);
         List<String> removed = new ArrayList<>(before);
         removed.removeAll(after);
-        if (!added.isEmpty()) changes.add("añadió " + label + " " + String.join(", ", added));
-        if (!removed.isEmpty()) changes.add("eliminó " + label + " " + String.join(", ", removed));
+        if (!added.isEmpty())
+            changes.add("añadió " + label + " " + String.join(", ", added));
+        if (!removed.isEmpty())
+            changes.add("eliminó " + label + " " + String.join(", ", removed));
     }
 
     private List<String> extraerValores(String html, String attribute) {
@@ -603,9 +615,11 @@ public DocumentResponseDTO updateStatus(
         while ((index = html.indexOf(search, index)) >= 0) {
             int start = index + search.length();
             int end = html.indexOf('"', start);
-            if (end < 0) break;
+            if (end < 0)
+                break;
             String value = html.substring(start, end).trim();
-            if (!value.isEmpty() && !values.contains(value)) values.add(value);
+            if (!value.isEmpty() && !values.contains(value))
+                values.add(value);
             index = end + 1;
         }
         return values;
@@ -620,7 +634,6 @@ public DocumentResponseDTO updateStatus(
         }
         return count;
     }
-
 
     /**
      * Genera el PDF de un documento a partir de su contenido HTML
@@ -756,38 +769,37 @@ public DocumentResponseDTO updateStatus(
 
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-       for (DocumentEntity child : children) {
-    response.add(toResponse(child, null));
-}
-
+        for (DocumentEntity child : children) {
+            response.add(toResponse(child, null));
+        }
 
         return response;
     }
 
-   public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
+    public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
 
-    List<DocumentEntity> minutes = documentRepository
-            .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
-                    projectId,
-                    DocumentTypeEnum.MEETING_MINUTES);
+        List<DocumentEntity> minutes = documentRepository
+                .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
+                        projectId,
+                        DocumentTypeEnum.MEETING_MINUTES);
 
-    List<Long> sprintIds = minutes.stream()
-            .map(DocumentEntity::getSprintId)
-            .filter(java.util.Objects::nonNull)
-            .distinct()
-            .toList();
+        List<Long> sprintIds = minutes.stream()
+                .map(DocumentEntity::getSprintId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
 
-    Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
-            .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
+        Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
+                .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
 
-    List<DocumentResponseDTO> response = new ArrayList<>();
+        List<DocumentResponseDTO> response = new ArrayList<>();
 
-    for (DocumentEntity entity : minutes) {
-        response.add(toResponse(entity, sprintsById));
+        for (DocumentEntity entity : minutes) {
+            response.add(toResponse(entity, sprintsById));
+        }
+
+        return response;
     }
-
-    return response;
-}
 
     public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
 
@@ -800,9 +812,45 @@ public DocumentResponseDTO updateStatus(
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity entity : minutes) {
-    response.add(toResponse(entity, null));
-}
+            response.add(toResponse(entity, null));
+        }
 
         return response;
+    }
+
+    public List<SectionMatchResponseDTO> findSectionMatches(Long projectId, List<String> sectionKeys) {
+
+        List<SectionMatchResponseDTO> matches = new ArrayList<>();
+
+        if (sectionKeys == null || sectionKeys.isEmpty()) {
+            return matches;
+        }
+
+        List<DocumentEntity> documentos = documentRepository
+                .findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(projectId);
+
+        for (String sectionKey : sectionKeys) {
+
+            for (DocumentEntity documento : documentos) {
+
+                SectionContentUtil.ExtractedSection encontrada = SectionContentUtil
+                        .extractSection(documento.getContent(), sectionKey);
+
+                if (encontrada != null) {
+                    SectionMatchResponseDTO match = new SectionMatchResponseDTO();
+
+                    match.setSectionKey(sectionKey);
+                    match.setSectionTitle(encontrada.getTitle());
+                    match.setSourceDocumentId(documento.getId());
+                    match.setSourceDocumentTitle(documento.getTitle());
+                    match.setContent(encontrada.getContent());
+
+                    matches.add(match);
+                    break; 
+                }
+            }
+        }
+
+        return matches;
     }
 }

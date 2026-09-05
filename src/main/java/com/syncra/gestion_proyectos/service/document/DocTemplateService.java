@@ -3,12 +3,18 @@ package com.syncra.gestion_proyectos.service.document;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataAccessException;
 
 import com.syncra.gestion_proyectos.dto.document.DocTemplateResponseDTO;
+import com.syncra.gestion_proyectos.dto.document.DocTemplateSectionDTO;
+import com.syncra.gestion_proyectos.dto.document.DocTemplateCreateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
+import com.syncra.gestion_proyectos.entity.document.DocTemplateSectionEntity;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
+import com.syncra.gestion_proyectos.repository.document.DocTemplateSectionRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,10 +25,15 @@ public class DocTemplateService {
 
     private final DocTemplateRepository docTemplateRepository;
 
+    private final DocTemplateSectionRepository docTemplateSectionRepository;
+
     /**
      * Obtiene el catálogo completo de plantillas ordenado por posición.
      * No incluye el contenido base de cada plantilla (defaultContent),
-     * solo la información necesaria para listarlas.
+     * solo la información necesaria para listarlas. Sí incluye las
+     * secciones (con su propio defaultContent), porque el frontend las
+     * necesita para poder ofrecer la reutilización de información antes
+     * de que el usuario entre a ver la plantilla completa.
      *
      * @return lista de plantillas disponibles
      */
@@ -56,6 +67,33 @@ public class DocTemplateService {
         return toResponse(templateFound.get(), true);
     }
 
+    public DocTemplateResponseDTO create(DocTemplateCreateDTO request) {
+        DocTemplateEntity template = new DocTemplateEntity();
+        template.setCode("CUSTOM-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        template.setTitle(request.getTitle().trim());
+        template.setDescription(request.getDescription());
+        template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        template.setPosition(docTemplateRepository.findAll().stream()
+                .mapToLong(item -> item.getPosition() == null ? 0L : item.getPosition())
+                .max().orElse(0L) + 1);
+        return toResponse(docTemplateRepository.save(template), true);
+    }
+
+    public DocTemplateResponseDTO update(Long id, DocTemplateCreateDTO request) {
+        DocTemplateEntity template = docTemplateRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
+        template.setTitle(request.getTitle().trim());
+        template.setDescription(request.getDescription());
+        template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        return toResponse(docTemplateRepository.save(template), true);
+    }
+
+    public void delete(Long id) {
+        DocTemplateEntity template = docTemplateRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
+        docTemplateRepository.delete(template);
+    }
+
     /**
      * Convierte una entidad en un dto de respuesta
      *
@@ -75,6 +113,36 @@ public class DocTemplateService {
 
         if (includeContent) {
             response.setDefaultContent(template.getDefaultContent());
+        }
+
+        response.setSections(getSections(template.getId()));
+
+        return response;
+    }
+
+    private List<DocTemplateSectionDTO> getSections(Long templateId) {
+
+        List<DocTemplateSectionEntity> sections;
+        try {
+            sections = docTemplateSectionRepository.findByTemplateIdOrderByPositionAsc(templateId);
+        } catch (DataAccessException exception) {
+            return new ArrayList<>();
+        }
+
+        List<DocTemplateSectionDTO> response = new ArrayList<>();
+
+        for (DocTemplateSectionEntity section : sections) {
+
+            DocTemplateSectionDTO dto = new DocTemplateSectionDTO();
+
+            dto.setId(section.getId());
+            dto.setTemplateId(section.getTemplateId());
+            dto.setSectionKey(section.getSectionKey());
+            dto.setTitle(section.getTitle());
+            dto.setDefaultContent(section.getDefaultContent());
+            dto.setPosition(section.getPosition());
+
+            response.add(dto);
         }
 
         return response;

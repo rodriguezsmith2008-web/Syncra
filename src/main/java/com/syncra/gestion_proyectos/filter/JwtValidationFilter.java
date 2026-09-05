@@ -105,6 +105,10 @@ protected boolean shouldNotFilter(HttpServletRequest request) {
         return true;
     }
 
+        if (path.matches(".*/doc-templates(?:/\\d+)?") && method.equals("GET")) {
+            return true;
+        }
+
     return path.endsWith("/auth/login")
             || path.endsWith("/auth/refresh")
             || path.endsWith("/auth/forgot-password")

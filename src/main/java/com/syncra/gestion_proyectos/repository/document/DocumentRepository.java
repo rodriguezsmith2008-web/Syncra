@@ -33,5 +33,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> 
     List<DocumentEntity> findByParentDocumentIdAndDocumentTypeAndDeletedAtIsNullOrderBySortOrderAsc(
             Long parentDocumentId,
             DocumentTypeEnum documentType);
+            
+    List<DocumentEntity> findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(Long projectId);
 
 }
