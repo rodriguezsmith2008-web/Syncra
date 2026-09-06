@@ -423,7 +423,7 @@ public class UserService {
      */
     public FileUploadResponseDTO uploadAvatar(MultipartFile file) throws IOException {
 
-        Map uploadResult = cloudinary.uploader().upload(
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(
                 file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", "avatars",

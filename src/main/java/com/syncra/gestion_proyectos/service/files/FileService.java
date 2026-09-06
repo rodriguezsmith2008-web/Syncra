@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -73,13 +74,18 @@ public class FileService {
         String originalFilename = file.getOriginalFilename();
 
         try {
-            Map<?, ?> uploadOptions = ObjectUtils.asMap("resource_type", "auto");
+            String safeBaseName = originalFilename == null || originalFilename.isBlank()
+                    ? "archivo"
+                    : originalFilename.contains(".")
+                        ? originalFilename.substring(0, originalFilename.lastIndexOf('.'))
+                        : originalFilename;
+            String normalizedBaseName = safeBaseName.replaceAll("[^a-zA-Z0-9_-]", "-");
+            String publicId = "syncra/projects/" + projectId + "/" + normalizedBaseName + "-" + UUID.randomUUID();
 
-            if (esArchivoRaw(originalFilename, file.getContentType())) {
-                uploadOptions = ObjectUtils.asMap(
-                        "resource_type", "raw",
-                        "public_id", originalFilename);
-            }
+            Map<String, Object> uploadOptions = new java.util.HashMap<>();
+            uploadOptions.put("resource_type", esArchivoRaw(originalFilename, file.getContentType())
+                    || esPdf(originalFilename, file.getContentType()) ? "raw" : "auto");
+            uploadOptions.put("public_id", publicId);
 
             Map<?, ?> resultado = cloudinary.uploader().upload(file.getBytes(), uploadOptions);
             url = resultado.get("secure_url").toString();
@@ -123,6 +129,13 @@ public class FileService {
                 || normalizedContentType.equals("application/vnd.ms-excel")
                 || normalizedContentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
                 || normalizedContentType.equals("application/vnd.ms-powerpoint");
+    }
+
+    private boolean esPdf(String filename, String contentType) {
+        String normalizedFilename = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        String normalizedContentType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+
+        return normalizedFilename.endsWith(".pdf") || normalizedContentType.equals("application/pdf");
     }
 
     /**

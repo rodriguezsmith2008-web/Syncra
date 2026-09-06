@@ -12,4 +12,8 @@ public interface DocTemplateRepository extends JpaRepository<DocTemplateEntity,L
     Optional<DocTemplateEntity> findByCode(String code);
 
     List<DocTemplateEntity> findAllByOrderByPositionAsc();
+
+    List<DocTemplateEntity> findAllByPublishedTrueOrderByPositionAsc();
+
+    List<DocTemplateEntity> findAllByPublishedTrueAndParentTemplateIdIsNullOrderByPositionAsc();
 } 

@@ -49,6 +49,25 @@ public class DocTemplateService {
         return response;
     }
 
+    public List<DocTemplateResponseDTO> listPublished() {
+
+        List<DocTemplateEntity> templates = docTemplateRepository
+            .findAllByPublishedTrueAndParentTemplateIdIsNullOrderByPositionAsc();
+        List<DocTemplateResponseDTO> response = new ArrayList<>();
+
+        for (DocTemplateEntity template : templates) {
+            String description = template.getDescription();
+            boolean legacyChild = description != null
+                    && description.trim().toLowerCase().startsWith("plantilla hija de");
+
+            if (!legacyChild) {
+                response.add(toResponse(template, false));
+            }
+        }
+
+        return response;
+    }
+
     /**
      * Obtiene una plantilla puntual, incluyendo su contenido base,
      * útil para previsualizarla antes de crear un documento con ella.
@@ -73,6 +92,8 @@ public class DocTemplateService {
         template.setTitle(request.getTitle().trim());
         template.setDescription(request.getDescription());
         template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        template.setParentTemplateId(request.getParentTemplateId());
+        template.setPublished(false);
         template.setPosition(docTemplateRepository.findAll().stream()
                 .mapToLong(item -> item.getPosition() == null ? 0L : item.getPosition())
                 .max().orElse(0L) + 1);
@@ -85,6 +106,14 @@ public class DocTemplateService {
         template.setTitle(request.getTitle().trim());
         template.setDescription(request.getDescription());
         template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        template.setPublished(false);
+        return toResponse(docTemplateRepository.save(template), true);
+    }
+
+    public DocTemplateResponseDTO publish(Long id) {
+        DocTemplateEntity template = docTemplateRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
+        template.setPublished(true);
         return toResponse(docTemplateRepository.save(template), true);
     }
 
@@ -110,6 +139,8 @@ public class DocTemplateService {
         response.setTitle(template.getTitle());
         response.setDescription(template.getDescription());
         response.setPosition(template.getPosition());
+        response.setPublished(template.isPublished());
+        response.setParentTemplateId(template.getParentTemplateId());
 
         if (includeContent) {
             response.setDefaultContent(template.getDefaultContent());

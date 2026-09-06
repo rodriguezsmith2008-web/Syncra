@@ -52,6 +52,7 @@ public class FileController {
      * @param file imagen recibida del editor
      * @return URL de la imagen en Cloudinary
      */
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR })
     @PostMapping("/upload-image")
     public ResponseEntity<Map<String, String>> uploadEditorImage(
             @PathVariable Long projectId, // ← agregar esto
@@ -83,7 +84,7 @@ public class FileController {
      * @param request   usado para obtener el id del usuario autenticado
      * @return archivo creado
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR })
     @PostMapping
     public ResponseEntity<FileResponseDTO> upload(@PathVariable Long projectId,
             @RequestParam("file") MultipartFile file, HttpServletRequest request) {

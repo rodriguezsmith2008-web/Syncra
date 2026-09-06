@@ -42,7 +42,7 @@ public class ExternalLinkController {
         return ResponseEntity.ok(linkService.getById(projectId, linkId));
     }
 
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PostMapping
     public ResponseEntity<ExternalLinkResponseDTO> create(
             @PathVariable Long projectId,
@@ -62,7 +62,7 @@ public class ExternalLinkController {
      * @param request
      * @return enlace actualizado
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PutMapping("/{linkId}")
     public ResponseEntity<ExternalLinkResponseDTO> update(
             @PathVariable Long projectId,
@@ -81,7 +81,7 @@ public class ExternalLinkController {
      * @param request
      * @return respuesta sin contenido
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @DeleteMapping("/{linkId}")
     public ResponseEntity<Void> delete(@PathVariable Long projectId, @PathVariable Long linkId,
             HttpServletRequest request) {

@@ -14,5 +14,7 @@ public class DocTemplateResponseDTO {
     private String description;
     private Long position;
     private String defaultContent;
+    private boolean published;
+    private Long parentTemplateId;
     private List<DocTemplateSectionDTO> sections;
 }

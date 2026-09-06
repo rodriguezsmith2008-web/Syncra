@@ -92,7 +92,7 @@ public class DocumentController {
     /**
      * Crear documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PostMapping
     public ResponseEntity<DocumentResponseDTO> create(
             @PathVariable Long projectId,
@@ -145,7 +145,7 @@ public class DocumentController {
     /**
      * Actualizar documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PutMapping("/{id}")
     public ResponseEntity<DocumentMessage> update(
             @PathVariable Long id,
@@ -162,7 +162,7 @@ public class DocumentController {
     /**
      * Eliminar documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @DeleteMapping("/{id}")
     public ResponseEntity<DocumentMessage> delete(
             @PathVariable Long id) {

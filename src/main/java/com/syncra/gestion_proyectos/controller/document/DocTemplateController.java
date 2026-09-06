@@ -42,6 +42,12 @@ public class DocTemplateController {
         return ResponseEntity.ok(docTemplateService.listAll());
     }
 
+    @RequireRole(RoleUserEnum.APPRENTICE)
+    @GetMapping("/published")
+    public ResponseEntity<List<DocTemplateResponseDTO>> listPublished() {
+        return ResponseEntity.ok(docTemplateService.listPublished());
+    }
+
     /**
      * Obtiene una plantilla puntual junto con su contenido base
      *
@@ -65,6 +71,12 @@ public class DocTemplateController {
             @PathVariable Long id,
             @RequestBody DocTemplateCreateDTO request) {
         return ResponseEntity.ok(docTemplateService.update(id, request));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PostMapping("/{id}/publish")
+    public ResponseEntity<DocTemplateResponseDTO> publish(@PathVariable Long id) {
+        return ResponseEntity.ok(docTemplateService.publish(id));
     }
 
     @RequireRole(RoleUserEnum.INSTRUCTOR)

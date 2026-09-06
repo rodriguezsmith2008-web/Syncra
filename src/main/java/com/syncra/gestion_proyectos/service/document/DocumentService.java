@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -129,6 +131,22 @@ public class DocumentService {
             dto.setDocumentType(DocumentTypeEnum.DOCUMENT);
         }
 
+        if (dto.getParentDocumentId() != null) {
+            DocumentEntity parent = documentRepository
+                    .findByIdAndDeletedAtIsNull(dto.getParentDocumentId())
+                    .orElseThrow(() -> new IllegalArgumentException("La página padre no existe."));
+
+            if (!projectId.equals(parent.getProjectId())) {
+                throw new IllegalArgumentException("La página padre pertenece a otro proyecto.");
+            }
+
+            if (parent.getDocumentType() != DocumentTypeEnum.DOCUMENT
+                    || dto.getDocumentType() != DocumentTypeEnum.DOCUMENT) {
+                throw new IllegalArgumentException(
+                        "Dentro de una página solo se pueden crear documentos normales.");
+            }
+        }
+
         DocumentEntity newDocument = new DocumentEntity();
 
         newDocument.setProjectId(projectId);
@@ -173,8 +191,70 @@ public class DocumentService {
                             createdBy));
         }
 
+                    materializarHijosDePlantilla(saved, createdBy);
+
         return toResponse(saved, null);
 
+    }
+
+    private void materializarHijosDePlantilla(DocumentEntity parent, Long createdBy) {
+        String content = parent.getContent();
+        if (content == null || content.isBlank()) {
+            return;
+        }
+
+        Pattern markerPattern = Pattern.compile(
+                "<div(?=[^>]*data-document-card)(?=[^>]*data-template-id=\"(\\d+)\")(?=[^>]*data-titulo=\"([^\"]*)\")[^>]*>");
+        Matcher matcher = markerPattern.matcher(content);
+        StringBuffer updatedContent = new StringBuffer();
+        boolean changed = false;
+
+        while (matcher.find()) {
+            Long templateId = Long.valueOf(matcher.group(1));
+            String childTitle = matcher.group(2);
+
+            if (templateAlreadyExistsInParentChain(parent, templateId)) {
+                matcher.appendReplacement(updatedContent, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+
+            DocumentRequestDTO childRequest = new DocumentRequestDTO();
+            childRequest.setTitle(childTitle == null || childTitle.isBlank() ? "Documento" : childTitle);
+            childRequest.setParentDocumentId(parent.getId());
+            childRequest.setTemplateId(templateId);
+            childRequest.setDocumentType(DocumentTypeEnum.DOCUMENT);
+
+            DocumentResponseDTO child = create(parent.getProjectId(), childRequest, createdBy);
+            String replacement = matcher.group()
+                    .replaceFirst(">", " data-doc-id=\"" + child.getId() + "\">");
+            matcher.appendReplacement(updatedContent, Matcher.quoteReplacement(replacement));
+            changed = true;
+        }
+
+        if (changed) {
+            matcher.appendTail(updatedContent);
+            parent.setContent(updatedContent.toString());
+            documentRepository.save(parent);
+        }
+    }
+
+    private boolean templateAlreadyExistsInParentChain(DocumentEntity document, Long templateId) {
+        Long parentId = document.getParentDocumentId();
+
+        while (parentId != null) {
+            Optional<DocumentEntity> parent = documentRepository.findByIdAndDeletedAtIsNull(parentId);
+            if (parent.isEmpty()) {
+                return false;
+            }
+
+            if (templateId.equals(parent.get().getTemplateId())) {
+                return true;
+            }
+
+            parentId = parent.get().getParentDocumentId();
+        }
+
+        return false;
     }
 
     /**
@@ -649,6 +729,11 @@ public class DocumentService {
 
         DocumentEntity document = documentFound.get();
 
+        if (document.getContent() == null || document.getContent().isBlank()) {
+            String emptyHtml = "<p>No hay contenido para exportar.</p>";
+            return generatePdfFromHtml(document.getTitle(), emptyHtml);
+        }
+
         String contenido = document.getContent()
                 .replaceAll("<img([^>]*[^/])>", "<img$1/>")
                 .replaceAll("<img>", "<img/>")
@@ -670,6 +755,13 @@ public class DocumentService {
 
         contenido = contenido.replaceAll("<col\\b([^>]*)>", "<col$1/>");
 
+        return generatePdfFromHtml(document.getTitle(), contenido);
+    }
+
+    private byte[] generatePdfFromHtml(String title, String contentHtml) throws Exception {
+        String safeTitle = title == null ? "Documento" : title.replace("&", "&amp;");
+        String safeContent = contentHtml == null ? "" : contentHtml;
+
         String html = """
                 <!DOCTYPE html>
                 <html>
@@ -688,12 +780,11 @@ public class DocumentService {
                     %s
                 </body>
                 </html>
-                """.formatted(document.getTitle(), contenido);
+                """.formatted(safeTitle, safeContent);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
-        System.out.println(html);
         builder.withHtmlContent(html, null);
         builder.toStream(outputStream);
         builder.run();

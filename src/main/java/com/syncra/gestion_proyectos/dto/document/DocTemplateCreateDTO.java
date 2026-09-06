@@ -12,4 +12,6 @@ public class DocTemplateCreateDTO {
     private String description;
 
     private String defaultContent;
+
+    private Long parentTemplateId;
 }
