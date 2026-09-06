@@ -26,5 +26,16 @@ public class DocTemplateSchemaInitializer implements CommandLineRunner {
             jdbcTemplate.execute(
                     "ALTER TABLE doc_templates ADD COLUMN published BOOLEAN NOT NULL DEFAULT TRUE");
         }
+
+        Integer parentTemplateColumnCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.columns "
+                + "WHERE table_schema = DATABASE() AND table_name = 'doc_templates' "
+                + "AND column_name = 'parent_template_id'",
+            Integer.class);
+
+        if (parentTemplateColumnCount != null && parentTemplateColumnCount == 0) {
+            jdbcTemplate.execute(
+                "ALTER TABLE doc_templates ADD COLUMN parent_template_id BIGINT NULL");
+        }
     }
 }
