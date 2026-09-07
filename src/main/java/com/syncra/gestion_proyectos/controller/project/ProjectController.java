@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
+import com.syncra.gestion_proyectos.dto.project.InstructorStatsResponseDTO;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
@@ -43,6 +44,12 @@ public class ProjectController {
     @GetMapping
     public ResponseEntity<List<ProjectResponseDTO>> getAll() {
         return ResponseEntity.ok(projectService.getAll());
+    }
+
+    @RequireRole({ RoleUserEnum.ADMIN, RoleUserEnum.INSTRUCTOR })
+    @GetMapping("/stats")
+    public ResponseEntity<InstructorStatsResponseDTO> getInstructorStats() {
+        return ResponseEntity.ok(projectService.getInstructorStats());
     }
 
     /**

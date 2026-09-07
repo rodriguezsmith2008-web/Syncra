@@ -84,6 +84,8 @@ public class ProjectMemberService {
             r.setFirstName(user.getFirstName());
             r.setLastName(user.getLastName());
             r.setAvatarUrl(user.getAvatarUrl());
+            r.setEmail(user.getEmail());
+            r.setDocumentNumber(user.getDocumentNumber());
             r.setRole(user.getRole().name());
         }
 

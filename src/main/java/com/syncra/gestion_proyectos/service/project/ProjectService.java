@@ -13,9 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
+import com.syncra.gestion_proyectos.dto.project.InstructorStatsResponseDTO;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
@@ -40,6 +42,17 @@ public class ProjectService {
      */
     public List<ProjectResponseDTO> getAll() {
         return toResponseList(projectRepository.findAll());
+    }
+
+    public InstructorStatsResponseDTO getInstructorStats() {
+        InstructorStatsResponseDTO stats = new InstructorStatsResponseDTO();
+        stats.setTotalProjects(projectRepository.count());
+        stats.setInProgressProjects(projectRepository.countByStatus(ProjectStatusEnum.IN_PROGRESS));
+        stats.setInReviewProjects(projectRepository.countByStatus(ProjectStatusEnum.IN_REVIEW));
+        stats.setApprovedProjects(projectRepository.countByStatus(ProjectStatusEnum.APPROVED));
+        stats.setRejectedProjects(projectRepository.countByStatus(ProjectStatusEnum.REJECTED));
+        stats.setTotalApprentices(projectMemberRepository.countDistinctUsersByRole(RoleUserEnum.APPRENTICE));
+        return stats;
     }
 
     /**
