@@ -76,6 +76,21 @@ public class FileController {
         }
     }
 
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR })
+    @PostMapping("/upload-image-url")
+    public ResponseEntity<Map<String, String>> uploadEditorImageFromUrl(
+            @PathVariable Long projectId, @RequestBody Map<String, String> body) {
+        try {
+            String imageUrl = body.get("url");
+            if (imageUrl == null || imageUrl.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "La URL es obligatoria."));
+            }
+            return ResponseEntity.ok(Map.of("url", service.uploadImageFromUrl(projectId, imageUrl)));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
+        }
+    }
+
     /**
      * Sube un archivo a un proyecto (multipart/form-data)
      *

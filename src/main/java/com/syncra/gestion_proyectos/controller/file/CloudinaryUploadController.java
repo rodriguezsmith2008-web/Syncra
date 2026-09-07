@@ -54,9 +54,11 @@ public class CloudinaryUploadController {
                     ? filename.substring(0, filename.lastIndexOf('.'))
                     : filename;
             String sanitizedBaseName = baseName.replaceAll("[^a-zA-Z0-9_-]", "-");
-            String publicId = "syncra/uploads/" + sanitizedBaseName + "-" + UUID.randomUUID();
+                boolean raw = esRaw(filename, contentType);
+                String extension = raw ? obtenerExtension(filename, contentType) : "";
+                String publicId = "syncra/uploads/" + sanitizedBaseName + "-" + UUID.randomUUID() + extension;
             Map<String, Object> options = ObjectUtils.asMap(
-                    "resource_type", esRaw(filename, contentType) ? "raw" : "auto",
+                    "resource_type", raw ? "raw" : "auto",
                     "public_id", publicId);
             Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), options);
             return ResponseEntity.ok(Map.of(
@@ -71,5 +73,24 @@ public class CloudinaryUploadController {
         return filename.toLowerCase(Locale.ROOT).endsWith(".pdf")
                 || contentType.equals("application/pdf")
                 || filename.toLowerCase(Locale.ROOT).matches(".*\\.(doc|docx|xls|xlsx|ppt|pptx)$");
+    }
+
+    private String obtenerExtension(String filename, String contentType) {
+        int punto = filename.lastIndexOf('.');
+        if (punto >= 0 && punto < filename.length() - 1) {
+            return filename.substring(punto).toLowerCase(Locale.ROOT)
+                    .replaceAll("[^a-z0-9.]", "");
+        }
+
+        return switch (contentType) {
+            case "application/pdf" -> ".pdf";
+            case "application/vnd.ms-excel" -> ".xls";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> ".xlsx";
+            case "application/vnd.ms-powerpoint" -> ".ppt";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> ".pptx";
+            case "application/msword" -> ".doc";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx";
+            default -> "";
+        };
     }
 }

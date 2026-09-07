@@ -1,6 +1,10 @@
 package com.syncra.gestion_proyectos.service.files;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -80,11 +84,14 @@ public class FileService {
                         ? originalFilename.substring(0, originalFilename.lastIndexOf('.'))
                         : originalFilename;
             String normalizedBaseName = safeBaseName.replaceAll("[^a-zA-Z0-9_-]", "-");
-            String publicId = "syncra/projects/" + projectId + "/" + normalizedBaseName + "-" + UUID.randomUUID();
+                boolean raw = esArchivoRaw(originalFilename, file.getContentType())
+                    || esPdf(originalFilename, file.getContentType());
+                String extension = raw ? obtenerExtension(originalFilename, file.getContentType()) : "";
+                String publicId = "syncra/projects/" + projectId + "/" + normalizedBaseName + "-" + UUID.randomUUID()
+                    + extension;
 
             Map<String, Object> uploadOptions = new java.util.HashMap<>();
-            uploadOptions.put("resource_type", esArchivoRaw(originalFilename, file.getContentType())
-                    || esPdf(originalFilename, file.getContentType()) ? "raw" : "auto");
+                uploadOptions.put("resource_type", raw ? "raw" : "auto");
             uploadOptions.put("public_id", publicId);
 
             Map<?, ?> resultado = cloudinary.uploader().upload(file.getBytes(), uploadOptions);
@@ -115,6 +122,82 @@ public class FileService {
         dto.setUploadedBy(entity.getUploadedBy());
 
         return dto;
+    }
+
+    public String uploadImageFromUrl(Long projectId, String imageUrl) {
+        try {
+            URI uri = URI.create(imageUrl.trim());
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException("La URL debe usar http o https");
+            }
+
+            InetAddress address = InetAddress.getByName(uri.getHost());
+            if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
+                    || address.isSiteLocalAddress()) {
+                throw new IllegalArgumentException("La URL no es accesible");
+            }
+
+            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection.setRequestProperty("User-Agent", "Syncra/1.0");
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(15000);
+            connection.setInstanceFollowRedirects(true);
+            connection.connect();
+
+            if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) {
+                throw new IOException("La imagen no se pudo descargar");
+            }
+
+            String contentType = connection.getContentType();
+            if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+                throw new IllegalArgumentException("La URL no apunta a una imagen");
+            }
+
+            int contentLength = connection.getContentLength();
+            if (contentLength > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("La imagen supera los 10 MB");
+            }
+
+            byte[] bytes;
+            try (InputStream input = connection.getInputStream()) {
+                bytes = input.readNBytes(10 * 1024 * 1024 + 1);
+            } finally {
+                connection.disconnect();
+            }
+
+            if (bytes.length > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("La imagen supera los 10 MB");
+            }
+
+            Map<?, ?> result = cloudinary.uploader().upload(bytes, ObjectUtils.asMap(
+                    "resource_type", "image",
+                    "public_id", "syncra/projects/" + projectId + "/url-image-" + UUID.randomUUID()));
+            return String.valueOf(result.get("secure_url"));
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("No se pudo subir la imagen desde la URL", exception);
+        }
+    }
+
+    private String obtenerExtension(String filename, String contentType) {
+        if (filename != null) {
+            int punto = filename.lastIndexOf('.');
+            if (punto >= 0 && punto < filename.length() - 1) {
+                return filename.substring(punto).toLowerCase(Locale.ROOT)
+                        .replaceAll("[^a-z0-9.]", "");
+            }
+        }
+
+        String tipo = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        return switch (tipo) {
+            case "application/pdf" -> ".pdf";
+            case "application/vnd.ms-excel" -> ".xls";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> ".xlsx";
+            case "application/vnd.ms-powerpoint" -> ".ppt";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> ".pptx";
+            case "application/msword" -> ".doc";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx";
+            default -> "";
+        };
     }
 
     private boolean esArchivoRaw(String filename, String contentType) {
