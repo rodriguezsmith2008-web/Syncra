@@ -13,11 +13,30 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import jakarta.validation.ConstraintViolationException;
 
 import jakarta.persistence.EntityNotFoundException;
+import java.util.NoSuchElementException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.server.ResponseStatusException;
 
 //Maneja todas las excepciones para toda la aplicación, en respuestas HTTP con el código de estado y el formato de mensaje correctos, en lugar de que Spring devuelva un error 500 genérico con el stacktrace expuesto
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<Map<String, String>> handleMissing(NoSuchElementException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String, String>> handleStatus(ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("error", ex.getReason() == null
+                ? "No se pudo completar la operación" : ex.getReason()));
+    }
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(EntityNotFoundException ex) {

@@ -64,3 +64,8 @@ cloudinary:
 
 jackson:
     time-zone: America/Bogota
+
+ai:
+  service:
+    url: ${AI_SERVICE_URL}
+    internal-api-key: ${AI_INTERNAL_API_KEY}

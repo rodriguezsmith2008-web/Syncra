@@ -35,6 +35,8 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
      */
     long countByUserIdAndIsReadFalse(Long userId);
 
+    boolean existsByUserIdAndTaskIdAndType(Long userId, Long taskId, String type);
+
     /**
      * Metodo para leer toda las notificaciones
      * 
