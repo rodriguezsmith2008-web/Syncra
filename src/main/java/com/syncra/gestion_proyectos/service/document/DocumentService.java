@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.service.document;
 
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
+import com.syncra.gestion_proyectos.service.realtime.DocumentRealtimeService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,6 +42,12 @@ import com.syncra.gestion_proyectos.repository.sprint.SprintRepository;
 
 import java.io.ByteArrayOutputStream;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Entities;
+import org.jsoup.parser.Tag;
+import org.jsoup.safety.Safelist;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +60,7 @@ public class DocumentService {
 
     /** Repositorio de documentos */
     private final DocumentRepository documentRepository;
+    private final DocumentRealtimeService documentRealtimeService;
 
     /** Repositorio de comentarios de documentos */
     private final DocumentCommentRepository documentCommentRepository;
@@ -316,6 +324,8 @@ public class DocumentService {
         documentToUpdate.setUpdatedBy(updatedBy);
 
         documentRepository.save(documentToUpdate);
+
+        documentRealtimeService.publishUpdated(toResponse(documentToUpdate, null));
 
         String description = changes.length() == 0 ? "actualizó los datos del documento" : changes.toString();
         activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
@@ -752,14 +762,26 @@ public class DocumentService {
                 .replace("&nbsp;", " ");
 
         contenido = embedImagenesComoBase64(contenido);
-
-        contenido = contenido.replaceAll("<col\\b([^>]*)>", "<col$1/>");
+        contenido = normalizarContenidoParaPdf(contenido);
 
         return generatePdfFromHtml(document.getTitle(), contenido);
     }
 
-    private byte[] generatePdfFromHtml(String title, String contentHtml) throws Exception {
-        String safeTitle = title == null ? "Documento" : title.replace("&", "&amp;");
+    private byte[] generatePdfFromHtml(String title, String contentHtml) {
+        try {
+            return renderPdf(title, contentHtml);
+        } catch (Exception exception) {
+            System.err.println("No se pudo renderizar el contenido enriquecido del PDF: " + exception.getMessage());
+            try {
+                return renderPdf(title, textoPlanoParaPdf(contentHtml));
+            } catch (Exception fallbackException) {
+                throw new IllegalStateException("No se pudo generar el PDF del documento", fallbackException);
+            }
+        }
+    }
+
+    private byte[] renderPdf(String title, String contentHtml) throws Exception {
+        String safeTitle = escapeHtml(title == null ? "Documento" : title);
         String safeContent = contentHtml == null ? "" : contentHtml;
 
         String html = """
@@ -773,6 +795,10 @@ public class DocumentService {
                         img { max-width: 100%%; height: auto; }
                         table { border-collapse: collapse; width: 100%%; }
                         td, th { border: 1px solid #ccc; padding: 4px; }
+                        blockquote { border-left: 3px solid #94a3b8; margin: 10px 0; padding: 4px 12px; color: #475569; }
+                        pre { white-space: pre-wrap; font-family: monospace; background: #f3f4f6; padding: 8px; }
+                        a { color: #1d4ed8; text-decoration: underline; }
+                        ul, ol { margin-top: 6px; margin-bottom: 6px; }
                     </style>
                 </head>
                 <body>
@@ -790,6 +816,64 @@ public class DocumentService {
         builder.run();
 
         return outputStream.toByteArray();
+    }
+
+    private String textoPlanoParaPdf(String contentHtml) {
+        String text = contentHtml == null ? "" : Jsoup.parse(contentHtml).text().trim();
+        if (text.isBlank()) {
+            text = "No hay contenido para exportar.";
+        }
+        return "<p>" + escapeHtml(text).replace("\n", "<br/>") + "</p>";
+    }
+
+    private String escapeHtml(String value) {
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    private String normalizarContenidoParaPdf(String content) {
+        Document source = Jsoup.parseBodyFragment(content == null ? "" : content);
+
+        for (Element fileCard : source.select("div[data-file-card]")) {
+            String url = fileCard.attr("data-file-url");
+            String name = fileCard.attr("data-file-name");
+            Element paragraph = new Element(Tag.valueOf("p"), "");
+            Element link = paragraph.appendElement("a").text("Archivo: " + (name.isBlank() ? "Adjunto" : name));
+            if (!url.isBlank()) {
+                link.attr("href", url);
+            }
+            fileCard.replaceWith(paragraph);
+        }
+
+        Safelist safelist = Safelist.none()
+                .addTags("p", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "h4",
+                        "blockquote", "ul", "ol", "li", "pre", "code", "table", "thead", "tbody", "tfoot",
+                        "tr", "th", "td", "a", "img", "hr", "span")
+                .addAttributes("a", "href", "title")
+                .addAttributes("img", "src", "alt", "width", "height")
+                .addProtocols("a", "href", "http", "https", "mailto")
+                .addProtocols("img", "src", "http", "https", "data");
+
+        Document parsed = Jsoup.parseBodyFragment(Jsoup.clean(source.body().html(), "", safelist));
+        for (Element element : parsed.body().getAllElements()) {
+            element.removeAttr("class");
+            element.removeAttr("id");
+            element.removeAttr("style");
+            if (element.is("img")) {
+                String src = element.attr("src").toLowerCase(java.util.Locale.ROOT);
+                if (src.startsWith("data:image/svg") || src.endsWith(".svg")) {
+                    element.remove();
+                }
+            }
+        }
+        parsed.outputSettings().syntax(Document.OutputSettings.Syntax.xml)
+                .escapeMode(Entities.EscapeMode.xhtml)
+                .charset(java.nio.charset.StandardCharsets.UTF_8)
+                .prettyPrint(false);
+        return parsed.body().html();
     }
 
     private String embedImagenesComoBase64(String content) {

@@ -60,6 +60,12 @@ public class DocTemplateController {
     }
 
     @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @GetMapping("/{id}/draft")
+    public ResponseEntity<DocTemplateResponseDTO> getDraftById(@PathVariable Long id) {
+        return ResponseEntity.ok(docTemplateService.getDraftById(id));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
     @PostMapping
     public ResponseEntity<DocTemplateResponseDTO> create(@RequestBody DocTemplateCreateDTO request) {
         return ResponseEntity.status(201).body(docTemplateService.create(request));
