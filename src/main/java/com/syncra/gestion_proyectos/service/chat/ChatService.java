@@ -7,7 +7,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.syncra.gestion_proyectos.dto.chat.ChatRealtimeEventDTO;
 import com.syncra.gestion_proyectos.dto.chat.ChatMessageRequestDTO;
 import com.syncra.gestion_proyectos.dto.chat.ChatMessageResponseDTO;
 import com.syncra.gestion_proyectos.dto.chat.ConversationResponseDTO;
@@ -38,6 +42,7 @@ public class ChatService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UsersRepository usersRepository;
     private final NotificationService notificationService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public List<ChatMessageResponseDTO> getProjectMessages(Long projectId, Long userId) {
         validateMember(projectId, userId);
@@ -65,6 +70,7 @@ public class ChatService {
         entity.setContent(request.getContent().trim());
 
         ProjectChatMessageEntity saved = projectChatMessageRepository.save(entity);
+        publishChatEvent(projectId, null, "PROJECT_MESSAGE");
         notifyProjectMembers(projectId, userId, "CHAT_PROJECT", "Nuevo mensaje en el chat del proyecto");
         return toResponse(saved);
     }
@@ -79,7 +85,9 @@ public class ChatService {
             throw new EntityNotFoundException("Mensaje no encontrado");
         }
         message.setContent(EDITED_MARKER + "\n" + request.getContent().trim());
-        return toResponse(projectChatMessageRepository.save(message));
+        ChatMessageResponseDTO response = toResponse(projectChatMessageRepository.save(message));
+        publishChatEvent(projectId, null, "PROJECT_MESSAGE");
+        return response;
     }
 
     @Transactional
@@ -91,7 +99,9 @@ public class ChatService {
             throw new EntityNotFoundException("Mensaje no encontrado");
         }
         message.setContent(DELETED_MARKER);
-        return toResponse(projectChatMessageRepository.save(message));
+        ChatMessageResponseDTO response = toResponse(projectChatMessageRepository.save(message));
+        publishChatEvent(projectId, null, "PROJECT_MESSAGE");
+        return response;
     }
 
     public List<ConversationResponseDTO> getConversations(Long projectId, Long userId) {
@@ -170,6 +180,7 @@ public class ChatService {
             : conversation.getUserOneId();
         notificationService.crear(recipientId, userId, projectId, null, null, null,
             "CHAT_PRIVATE", "Nuevo mensaje privado");
+        publishChatEvent(projectId, conversationId, "PRIVATE_MESSAGE");
         return toResponse(saved);
     }
 
@@ -186,7 +197,9 @@ public class ChatService {
             throw new EntityNotFoundException("Mensaje no encontrado");
         }
         message.setContent(EDITED_MARKER + "\n" + request.getContent().trim());
-        return toResponse(privateMessageRepository.save(message));
+        ChatMessageResponseDTO response = toResponse(privateMessageRepository.save(message));
+        publishChatEvent(projectId, conversationId, "PRIVATE_MESSAGE");
+        return response;
     }
 
     @Transactional
@@ -201,7 +214,9 @@ public class ChatService {
             throw new EntityNotFoundException("Mensaje no encontrado");
         }
         message.setContent(DELETED_MARKER);
-        return toResponse(privateMessageRepository.save(message));
+        ChatMessageResponseDTO response = toResponse(privateMessageRepository.save(message));
+        publishChatEvent(projectId, conversationId, "PRIVATE_MESSAGE");
+        return response;
     }
 
     @Transactional
@@ -230,6 +245,22 @@ public class ChatService {
         if (!projectMemberRepository.existsByIdProjectIdAndIdUserId(projectId, userId)) {
             throw new EntityNotFoundException("El usuario no pertenece al proyecto");
         }
+    }
+
+    private void publishChatEvent(Long projectId, Long conversationId, String type) {
+        Runnable publish = () -> messagingTemplate.convertAndSend(
+                "/topic/projects/" + projectId + "/chat",
+                new ChatRealtimeEventDTO(projectId, conversationId, type));
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            publish.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publish.run();
+            }
+        });
     }
 
     private void validateConversationMember(PrivateConversationEntity conversation, Long userId) {

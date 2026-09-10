@@ -15,6 +15,7 @@ import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateSectionEntity;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateSectionRepository;
+import com.syncra.gestion_proyectos.service.realtime.DocTemplateRealtimeService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +27,8 @@ public class DocTemplateService {
     private final DocTemplateRepository docTemplateRepository;
 
     private final DocTemplateSectionRepository docTemplateSectionRepository;
+
+    private final DocTemplateRealtimeService docTemplateRealtimeService;
 
     /**
      * Obtiene el catálogo completo de plantillas ordenado por posición.
@@ -92,36 +95,73 @@ public class DocTemplateService {
         template.setTitle(request.getTitle().trim());
         template.setDescription(request.getDescription());
         template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        template.setDraftContent(template.getDefaultContent());
+        template.setDraftTitle(template.getTitle());
+        template.setDraftDescription(template.getDescription());
         template.setParentTemplateId(request.getParentTemplateId());
         template.setPublished(false);
         template.setPosition(docTemplateRepository.findAll().stream()
                 .mapToLong(item -> item.getPosition() == null ? 0L : item.getPosition())
                 .max().orElse(0L) + 1);
-        return toResponse(docTemplateRepository.save(template), true);
+        DocTemplateEntity saved = docTemplateRepository.save(template);
+        docTemplateRealtimeService.publishChanged(saved.getId(), "CREATED");
+        return toResponse(saved, true);
     }
 
     public DocTemplateResponseDTO update(Long id, DocTemplateCreateDTO request) {
         DocTemplateEntity template = docTemplateRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
-        template.setTitle(request.getTitle().trim());
-        template.setDescription(request.getDescription());
-        template.setDefaultContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
-        template.setPublished(false);
-        return toResponse(docTemplateRepository.save(template), true);
+        template.setDraftTitle(request.getTitle().trim());
+        template.setDraftDescription(request.getDescription());
+        template.setDraftContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        DocTemplateEntity saved = docTemplateRepository.save(template);
+        docTemplateRealtimeService.publishChanged(saved.getId(), "UPDATED");
+        return toDraftResponse(saved);
     }
 
     public DocTemplateResponseDTO publish(Long id) {
         DocTemplateEntity template = docTemplateRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
+        if (template.getDraftContent() != null) {
+            template.setDefaultContent(template.getDraftContent());
+        }
+        if (template.getDraftTitle() != null) {
+            template.setTitle(template.getDraftTitle());
+        }
+        if (template.getDraftDescription() != null) {
+            template.setDescription(template.getDraftDescription());
+        }
+        template.setDraftContent(null);
+        template.setDraftTitle(null);
+        template.setDraftDescription(null);
         template.setPublished(true);
-        return toResponse(docTemplateRepository.save(template), true);
+        DocTemplateEntity saved = docTemplateRepository.save(template);
+        docTemplateRealtimeService.publishChanged(saved.getId(), "PUBLISHED");
+        return toResponse(saved, true);
     }
 
     public void delete(Long id) {
         DocTemplateEntity template = docTemplateRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
         docTemplateRepository.delete(template);
+        docTemplateRealtimeService.publishChanged(id, "DELETED");
     }
+
+        public DocTemplateResponseDTO getDraftById(Long id) {
+        DocTemplateEntity template = docTemplateRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
+        return toDraftResponse(template);
+        }
+
+        private DocTemplateResponseDTO toDraftResponse(DocTemplateEntity template) {
+        DocTemplateResponseDTO response = toResponse(template, true);
+        response.setTitle(template.getDraftTitle() != null ? template.getDraftTitle() : template.getTitle());
+        response.setDescription(template.getDraftDescription() != null
+            ? template.getDraftDescription() : template.getDescription());
+        response.setDefaultContent(template.getDraftContent() != null
+            ? template.getDraftContent() : template.getDefaultContent());
+        return response;
+        }
 
     /**
      * Convierte una entidad en un dto de respuesta

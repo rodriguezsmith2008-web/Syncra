@@ -37,5 +37,22 @@ public class DocTemplateSchemaInitializer implements CommandLineRunner {
             jdbcTemplate.execute(
                 "ALTER TABLE doc_templates ADD COLUMN parent_template_id BIGINT NULL");
         }
+
+        addColumnIfMissing("draft_content", "LONGTEXT NULL");
+        addColumnIfMissing("draft_title", "VARCHAR(200) NULL");
+        addColumnIfMissing("draft_description", "VARCHAR(500) NULL");
+    }
+
+    private void addColumnIfMissing(String columnName, String definition) {
+        Integer columnCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                        + "WHERE table_schema = DATABASE() AND table_name = 'doc_templates' "
+                        + "AND column_name = ?",
+                Integer.class,
+                columnName);
+
+        if (columnCount != null && columnCount == 0) {
+            jdbcTemplate.execute("ALTER TABLE doc_templates ADD COLUMN " + columnName + " " + definition);
+        }
     }
 }
