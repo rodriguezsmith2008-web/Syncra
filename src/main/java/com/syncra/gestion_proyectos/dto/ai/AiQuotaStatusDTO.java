@@ -10,4 +10,6 @@ public class AiQuotaStatusDTO {
     private Long tokensUsed;
     private Long tokensLimit;
     private Long tokensRemaining;
+    private Long projectId;
+    private String modelTier;
 }

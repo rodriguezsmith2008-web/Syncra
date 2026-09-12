@@ -76,6 +76,11 @@ public class AiQuotaService {
         return repo.save(quota);
     }
 
+    /**
+     * Decide si la tier está disponible AHORA MISMO.
+     * La acción en curso siempre se completa (no se corta a mitad).
+     * Cuando el límite se supera, la siguiente petición ya cae a la tier inferior.
+     */
     @Transactional
     public synchronized boolean canUse(Long projectId, AiModelTierEnum tier, long requestedTokens) {
         AiProjectQuotaEntity quota = getOrCreateQuota(projectId, tier);
@@ -85,8 +90,8 @@ public class AiQuotaService {
             quota.setTokensUsed(0L);
             quota = repo.save(quota);
         }
-
-        return quota.getRequestsUsed() < quota.getRequestsLimit() && quota.getTokensUsed() + requestedTokens <= quota.getTokensLimit();
+        return quota.getRequestsUsed() < quota.getRequestsLimit()
+                && quota.getTokensUsed() < quota.getTokensLimit();
     }
 
     @Transactional
@@ -155,12 +160,8 @@ public class AiQuotaService {
 
     public AiModelTierEnum nextAvailableTier(Long projectId, AiModelTierEnum currentTier) {
         for (AiModelTierEnum tier : modelPriority()) {
-            if (tier == currentTier) {
-                continue;
-            }
-            if (canUse(projectId, tier, 0L)) {
-                return tier;
-            }
+            if (tier == currentTier) continue;
+            if (canUse(projectId, tier, 0L)) return tier;
         }
         return null;
     }
