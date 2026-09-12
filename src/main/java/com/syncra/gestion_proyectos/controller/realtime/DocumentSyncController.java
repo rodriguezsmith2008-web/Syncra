@@ -20,10 +20,8 @@ import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 import com.syncra.gestion_proyectos.dto.realtime.DocumentSyncCatchUp;
 import com.syncra.gestion_proyectos.dto.realtime.DocumentSyncMessage;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
-import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
-import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.realtime.DocumentCollaborationSessionRegistry;
 
 import lombok.RequiredArgsConstructor;
@@ -37,7 +35,6 @@ public class DocumentSyncController {
     private final SimpMessagingTemplate messagingTemplate;
     private final DocumentRepository documentRepository;
     private final ProjectMemberRepository projectMemberRepository;
-    private final UsersRepository usersRepository;
     private final DocumentCollaborationSessionRegistry sessionRegistry;
 
     private final Map<Long, DocumentSyncState> syncStates = new java.util.concurrent.ConcurrentHashMap<>();
@@ -52,8 +49,10 @@ public class DocumentSyncController {
             Principal principal) {
 
         Long userId = obtenerUserId(headers);
-        if (userId == null || principal == null || message == null
-            || (!hasText(message.getUpdate()) && !hasText(message.getAwareness()))) {
+        if (userId == null || message == null || (!hasText(message.getUpdate()) && !hasText(message.getAwareness()))) {
+            log.debug("Update WebSocket descartado por entrada incompleta: documentId={}, userId={}, principalPresent={}, type={}, updatePresent={}, awarenessPresent={}",
+                    documentId, userId, principal != null, message != null ? message.getType() : null,
+                    message != null && hasText(message.getUpdate()), message != null && hasText(message.getAwareness()));
             return;
         }
 
@@ -63,13 +62,8 @@ public class DocumentSyncController {
             return;
         }
 
-        boolean esEstudiante = usersRepository.findById(userId)
-                .map(user -> user.getRole() == RoleUserEnum.APPRENTICE)
-                .orElse(false);
-        if (!esEstudiante || !esPrincipalEstudiante(principal)) {
-            log.warn("Update WebSocket descartado por rol no permitido: documentId={}, userId={}", documentId, userId);
-            return;
-        }
+        log.debug("Sync Yjs aceptado para documentId={}, userId={}, type={}, principalPresent={}",
+                documentId, userId, message.getType(), principal != null);
 
         DocumentSyncState state = syncStates.computeIfAbsent(documentId, ignored -> new DocumentSyncState());
         if ("seed".equals(message.getType())) {
@@ -92,10 +86,12 @@ public class DocumentSyncController {
         outbound.setAwareness(message.getAwareness());
         outbound.setSenderSessionId(headers.getSessionId());
 
+        log.debug("Broadcasting live Yjs sync to topic documentId={}, type={}, senderSessionId={}, updatePresent={}, awarenessPresent={}",
+                documentId, message.getType(), headers.getSessionId(), hasText(message.getUpdate()), hasText(message.getAwareness()));
+
         messagingTemplate.convertAndSend(
                 "/topic/documents/" + documentId + "/sync",
-                outbound,
-                Map.of(SimpMessageHeaderAccessor.SESSION_ID_HEADER, headers.getSessionId()));
+                outbound);
     }
 
     @EventListener
@@ -188,10 +184,4 @@ public class DocumentSyncController {
         return userId instanceof Number ? ((Number) userId).longValue() : null;
     }
 
-    private boolean esPrincipalEstudiante(Principal principal) {
-        return principal instanceof Authentication authentication
-                && authentication.getAuthorities().stream()
-                        .anyMatch(authority -> ("ROLE_" + RoleUserEnum.APPRENTICE.name())
-                                .equals(authority.getAuthority()));
-    }
 }

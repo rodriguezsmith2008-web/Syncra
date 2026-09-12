@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.task.TaskMoveDTO;
@@ -26,7 +27,9 @@ public class TaskService {
     private final TaskRepository repository;
     private final TaskHistoryService taskHistoryService;
     private final NotificationService notificationService;
-        private final UsersRepository usersRepository;
+    private final UsersRepository usersRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final TaskRealtimeService taskRealtimeService;
 
     /**
      * Obtiene todas las tareas de un proyecto (tablero kanban completo)
@@ -147,6 +150,7 @@ public class TaskService {
         repository.save(entity);
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
+        taskRealtimeService.publishChanged(entity.getProjectId(), entity.getId(), "CREATED");
 
         if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
             notificationService.crear(entity.getAssignedTo(), createdBy, entity.getProjectId(), entity.getId(), null, null,
@@ -222,6 +226,8 @@ public class TaskService {
             }
         }
 
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "UPDATED");
+
         return toResponse(entity);
     }
 
@@ -249,6 +255,7 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
     Long posicionDestino = dto.getPosition();
 
     boolean cambioDeColumna = !columnaAnterior.equals(columnaDestino);
+    boolean huboMovimiento = cambioDeColumna || !posicionAnterior.equals(posicionDestino);
 
     if (cambioDeColumna) {
 
@@ -267,11 +274,6 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
                 repository.save(restante);
             }
         }
-
-       if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
-    notificationService.crear(entity.getAssignedTo(), userId, entity.getProjectId(), entity.getId(), null, null,
-            "TASK_MOVED", "La tarea '" + entity.getTitle() + "' cambio de columna");
-}
 
     } else if (!posicionAnterior.equals(posicionDestino)) {
 
@@ -296,8 +298,22 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
     entity.setPosition(posicionDestino);
     repository.save(entity);
 
-    if (!columnaAnterior.equals(columnaDestino) || !posicionAnterior.equals(posicionDestino)) {
+    if (huboMovimiento) {
+        Long recipientUserId = entity.getAssignedTo();
+        if (recipientUserId != null && !recipientUserId.equals(userId)) {
+            applicationEventPublisher.publishEvent(
+                    new TaskMoveNotificationEvent(
+                            taskId,
+                            entity.getProjectId(),
+                            entity.getTitle(),
+                            recipientUserId,
+                            userId
+                    )
+            );
+        }
+
         taskHistoryService.registrar(taskId, userId, "MOVED", posicionAnterior.toString(), posicionDestino.toString());
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "MOVED");
     }
 
     return toResponse(entity);
@@ -327,6 +343,8 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
             restante.setPosition(restante.getPosition() - 1);
             repository.save(restante);
         }
+
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "DELETED");
     }
 
     /**
@@ -380,6 +398,7 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
         entity.setAssignedTo(null);
         repository.save(entity);
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "UPDATED");
 
         return toResponse(entity);
     }
