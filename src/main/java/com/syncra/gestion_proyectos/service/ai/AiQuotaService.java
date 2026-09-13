@@ -95,6 +95,12 @@ public class AiQuotaService {
     }
 
     @Transactional
+	public synchronized long remainingTokens(Long projectId, AiModelTierEnum tier) {
+		AiProjectQuotaEntity quota = getOrCreateQuota(projectId, tier);
+		return Math.max(0L, quota.getTokensLimit() - quota.getTokensUsed());
+	}
+
+    @Transactional
     public synchronized AiProjectQuotaEntity consume(Long projectId, AiModelTierEnum tier, long tokensConsumed) {
         AiProjectQuotaEntity quota = getOrCreateQuota(projectId, tier);
         if (!LocalDate.now().equals(quota.getPeriodStart())) {
@@ -129,15 +135,17 @@ public class AiQuotaService {
     }
 
     public AiQuotaStatusDTO toStatus(AiProjectQuotaEntity quota) {
-        AiQuotaStatusDTO dto = new AiQuotaStatusDTO();
-        dto.setRequestsUsed(quota.getRequestsUsed());
-        dto.setRequestsLimit(quota.getRequestsLimit());
-        dto.setRequestsRemaining(Math.max(0, quota.getRequestsLimit() - quota.getRequestsUsed()));
-        dto.setTokensUsed(quota.getTokensUsed());
-        dto.setTokensLimit(quota.getTokensLimit());
-        dto.setTokensRemaining(Math.max(0L, quota.getTokensLimit() - quota.getTokensUsed()));
-        return dto;
-    }
+		AiQuotaStatusDTO dto = new AiQuotaStatusDTO();
+		long used = quota.getTokensUsed();
+		long limit = quota.getTokensLimit();
+		dto.setRequestsUsed(quota.getRequestsUsed());
+		dto.setRequestsLimit(quota.getRequestsLimit());
+		dto.setRequestsRemaining(Math.max(0, quota.getRequestsLimit() - quota.getRequestsUsed()));
+		dto.setTokensUsed(Math.min(used, limit));
+		dto.setTokensLimit(limit);
+		dto.setTokensRemaining(Math.max(0L, limit - used));
+		return dto;
+	}
 
     public List<AiProjectQuotaEntity> getProjectQuotas(Long projectId) {
         return repo.findByProjectId(projectId);
