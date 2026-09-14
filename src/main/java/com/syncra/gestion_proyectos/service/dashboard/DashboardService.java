@@ -34,25 +34,22 @@ public class DashboardService {
         dto.setTotalUsers(usersRepository.count());
 
         // Usuarios activos
-        dto.setActiveUsers(
-                (long) usersRepository.findByStatus(UserStatusEnum.ACTIVE).size());
+        dto.setActiveUsers(usersRepository.countByStatus(UserStatusEnum.ACTIVE));
 
         // Total de proyectos
         dto.setTotalProjects(projectRepository.count());
 
         // Proyectos en progreso
-        dto.setActiveProjects(
-                (long) projectRepository.findByStatus(ProjectStatusEnum.IN_PROGRESS).size());
+        dto.setActiveProjects(projectRepository.countByStatus(ProjectStatusEnum.IN_PROGRESS));
 
         // Solicitudes pendientes
-        dto.setPendingAccessRequests(
-                (long) accessRepository.findAllByStatus(AccessStatusEnum.PENDING).size());
+        dto.setPendingAccessRequests(accessRepository.countAllByStatus(AccessStatusEnum.PENDING));
 
         // Conteo por rol
         List<UserRoleCountDTO> usersByRole = new ArrayList<>();
-        usersByRole.add(new UserRoleCountDTO("ADMIN", (long) usersRepository.findByRole(RoleUserEnum.ADMIN).size()));
-        usersByRole.add(new UserRoleCountDTO("INSTRUCTOR", (long) usersRepository.findByRole(RoleUserEnum.INSTRUCTOR).size()));
-        usersByRole.add(new UserRoleCountDTO("APPRENTICE", (long) usersRepository.findByRole(RoleUserEnum.APPRENTICE).size()));
+        usersByRole.add(new UserRoleCountDTO("ADMIN", usersRepository.countByRole(RoleUserEnum.ADMIN)));
+        usersByRole.add(new UserRoleCountDTO("INSTRUCTOR", usersRepository.countByRole(RoleUserEnum.INSTRUCTOR)));
+        usersByRole.add(new UserRoleCountDTO("APPRENTICE", usersRepository.countByRole(RoleUserEnum.APPRENTICE)));
         dto.setUsersByRole(usersByRole);
 
         // Conteo por estado de proyecto
