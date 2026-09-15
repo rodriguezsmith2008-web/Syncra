@@ -3,7 +3,9 @@ package com.syncra.gestion_proyectos.service.kanban;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.syncra.gestion_proyectos.dto.KanbaColumn.KanbaColumMessage;
 import com.syncra.gestion_proyectos.dto.KanbaColumn.KanbaColumRequestDTO;
@@ -21,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class KanbanColumnService {
 
+    private static final String COMPLETED_COLUMN_NAME = "Completado";
+
     private final KanbanColumnRepository repository;
     private final ActivityLogService activityLogService;
 
@@ -30,7 +34,10 @@ public class KanbanColumnService {
      * @param projectid
      * @return lista de columnas
      */
+    @Transactional
     public List<KanbaColumResponseDTO> getAllColumsForProject(Long projectid) {
+
+        ensureCompletedColumn(projectid, null);
 
         List<KanbanColumnEntity> columsEntity = repository.findByProjectIdOrderByPositionAsc(projectid);
         List<KanbaColumResponseDTO> response = new ArrayList<>();
@@ -88,6 +95,27 @@ public class KanbanColumnService {
         return columnas.get(columnas.size() - 1).getPosition() + 1;
     }
 
+    @Transactional
+    public void ensureCompletedColumn(Long projectId, Long userId) {
+        if (repository.findByProjectIdAndNameIgnoreCase(projectId, COMPLETED_COLUMN_NAME) != null) {
+            moveCompletedColumnToEnd(projectId);
+            return;
+        }
+
+        KanbanColumnEntity entity = new KanbanColumnEntity();
+        entity.setProjectId(projectId);
+        entity.setName(COMPLETED_COLUMN_NAME);
+        entity.setColor("#16a34a");
+        entity.setIsFinal(true);
+        entity.setPosition(nextPosition(projectId));
+        repository.save(entity);
+
+        if (userId != null) {
+            activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
+                    ActivityActionEnum.CREATED, "creó la columna \"" + COMPLETED_COLUMN_NAME + "\"", userId);
+        }
+    }
+
     /**
      * Crea una nueva columna en un proyecto.
      * Si no se envia posicion, se calcula automaticamente al final.
@@ -101,20 +129,17 @@ public class KanbanColumnService {
     public KanbaColumMessage<KanbaColumResponseDTO> create(Long projectId, KanbaColumRequestDTO dto, Long userId) {
 
         KanbaColumMessage<KanbaColumResponseDTO> message = new KanbaColumMessage<>();
+        ensureCompletedColumn(projectId, userId);
 
         KanbanColumnEntity entity = new KanbanColumnEntity();
         entity.setProjectId(projectId);
         entity.setName(dto.getName());
         entity.setColor(dto.getColor());
-        entity.setIsFinal(dto.getIsFinal() != null ? dto.getIsFinal() : false);
-
-        if (dto.getPosition() != null) {
-            entity.setPosition(dto.getPosition());
-        } else {
-            entity.setPosition(nextPosition(projectId));
-        }
+        entity.setIsFinal(false);
+        entity.setPosition(nextPosition(projectId));
 
         repository.save(entity);
+        moveCompletedColumnToEnd(projectId);
 
         activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
                 ActivityActionEnum.CREATED, "creó la columna \"" + entity.getName() + "\"", userId);
@@ -147,16 +172,20 @@ public class KanbanColumnService {
             return response;
         }
 
+        if (isCompleted(entity)) {
+            throw protectedColumnException();
+        }
+
         if (dto.getName() != null)
             entity.setName(dto.getName());
         if (dto.getPosition() != null)
             entity.setPosition(dto.getPosition());
         if (dto.getColor() != null)
             entity.setColor(dto.getColor());
-        if (dto.getIsFinal() != null)
-            entity.setIsFinal(dto.getIsFinal());
+        entity.setIsFinal(false);
 
         repository.save(entity);
+        moveCompletedColumnToEnd(projectId);
 
         activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
                 ActivityActionEnum.UPDATED, "editó la columna \"" + entity.getName() + "\"", userId);
@@ -176,6 +205,8 @@ public class KanbanColumnService {
     @Transactional
     public void reorder(Long projectId, List<KanbaColumResponseDTO> columns) {
 
+        ensureCompletedColumn(projectId, null);
+
         for (KanbaColumResponseDTO item : columns) {
 
             KanbanColumnEntity entity = repository.findById(item.getId()).orElse(null);
@@ -184,9 +215,15 @@ public class KanbanColumnService {
                 continue;
             }
 
+            if (isCompleted(entity)) {
+                throw protectedColumnException();
+            }
+
             entity.setPosition(item.getPosition());
             repository.save(entity);
         }
+
+        moveCompletedColumnToEnd(projectId);
     }
 
     /**
@@ -209,6 +246,10 @@ public class KanbanColumnService {
             return message;
         }
 
+        if (isCompleted(columna)) {
+            throw protectedColumnException();
+        }
+
         String nombre = columna.getName();
         Long posicionEliminada = columna.getPosition();
         repository.delete(columna);
@@ -222,11 +263,44 @@ public class KanbanColumnService {
             }
         }
 
+        ensureCompletedColumn(projectId, userId);
+        moveCompletedColumnToEnd(projectId);
+
         activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, columnId,
                 ActivityActionEnum.DELETED, "eliminó la columna \"" + nombre + "\"", userId);
 
         message.setMessage("Columna eliminada correctamente");
         return message;
+    }
+
+    private boolean isCompleted(KanbanColumnEntity entity) {
+        return COMPLETED_COLUMN_NAME.equalsIgnoreCase(entity.getName()) || Boolean.TRUE.equals(entity.getIsFinal());
+    }
+
+    private ResponseStatusException protectedColumnException() {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
+                "La columna Completado no se puede editar, reordenar ni eliminar");
+    }
+
+    private void moveCompletedColumnToEnd(Long projectId) {
+        KanbanColumnEntity completed = repository.findByProjectIdAndNameIgnoreCase(projectId, COMPLETED_COLUMN_NAME);
+        if (completed == null) {
+            return;
+        }
+
+        List<KanbanColumnEntity> columns = repository.findByProjectIdOrderByPositionAsc(projectId);
+        long position = 0;
+        for (KanbanColumnEntity column : columns) {
+            if (!column.getId().equals(completed.getId())) {
+                column.setPosition(position++);
+                column.setIsFinal(false);
+                repository.save(column);
+            }
+        }
+
+        completed.setPosition(position);
+        completed.setIsFinal(true);
+        repository.save(completed);
     }
 
     /**

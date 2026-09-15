@@ -21,6 +21,7 @@ import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
+import com.syncra.gestion_proyectos.service.kanban.KanbanColumnService;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UsersRepository userRepository;
     private final ProjectMemberService projectMemberService;
+    private final KanbanColumnService kanbanColumnService;
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     /**
@@ -94,6 +96,7 @@ public class ProjectService {
         entity.setCreatedBy(createdBy);
 
         ProjectEntity saved = projectRepository.save(entity);
+        kanbanColumnService.ensureCompletedColumn(saved.getId(), createdBy);
 
         try {
             projectMemberService.addMember(saved.getId(), createdBy);

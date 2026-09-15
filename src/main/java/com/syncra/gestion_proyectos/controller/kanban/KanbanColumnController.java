@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.controller.kanban;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -83,7 +84,11 @@ public class KanbanColumnController {
     public ResponseEntity<KanbaColumMessage<KanbaColumResponseDTO>> update(@PathVariable Long projectId,
             @PathVariable Long columnId, @RequestBody KanbaColumRequestDTO dto, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        return ResponseEntity.ok(service.update(projectId, columnId, dto, userId));
+        try {
+            return ResponseEntity.ok(service.update(projectId, columnId, dto, userId));
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            return ResponseEntity.status(exception.getStatusCode()).build();
+        }
     }
 
     /**
@@ -97,8 +102,12 @@ public class KanbanColumnController {
     @PutMapping("/reorder")
     public ResponseEntity<Void> reorder(@PathVariable Long projectId,
             @RequestBody List<KanbaColumResponseDTO> columns) {
-        service.reorder(projectId, columns);
-        return ResponseEntity.noContent().build();
+        try {
+            service.reorder(projectId, columns);
+            return ResponseEntity.noContent().build();
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            return ResponseEntity.status(exception.getStatusCode()).build();
+        }
     }
 
     /**
@@ -114,6 +123,10 @@ public class KanbanColumnController {
     public ResponseEntity<KanbaColumMessage<Void>> delete(@PathVariable Long projectId,
             @PathVariable Long columnId, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        return ResponseEntity.ok(service.delete(projectId, columnId, userId));
+        try {
+            return ResponseEntity.ok(service.delete(projectId, columnId, userId));
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            return ResponseEntity.status(exception.getStatusCode()).build();
+        }
     }
 }
