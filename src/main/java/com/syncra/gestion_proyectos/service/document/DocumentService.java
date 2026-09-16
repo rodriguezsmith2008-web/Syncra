@@ -199,7 +199,7 @@ public class DocumentService {
                             createdBy));
         }
 
-                    materializarHijosDePlantilla(saved, createdBy);
+        materializarHijosDePlantilla(saved, createdBy);
 
         return toResponse(saved, null);
 
@@ -781,7 +781,7 @@ public class DocumentService {
     }
 
     private byte[] renderPdf(String title, String contentHtml) throws Exception {
-        String safeTitle = escapeHtml(title == null ? "Documento" : title);
+        String safeTitle = escapeHtml(removerEmojis(title == null ? "Documento" : title));
         String safeContent = contentHtml == null ? "" : contentHtml;
 
         String html = """
@@ -789,14 +789,27 @@ public class DocumentService {
                 <html>
                 <head>
                     <meta charset="UTF-8" />
-                    <style>
-                        body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; }
-                        h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+                                        <style>
+                        @page {
+                            size: A4;
+                            margin: 2.2cm 2cm 2.5cm 2cm;
+                            @bottom-center {
+                                content: "Página " counter(page) " de " counter(pages);
+                                font-family: 'Helvetica', sans-serif;
+                                font-size: 9px;
+                                color: #9ca3af;
+                            }
+                        }
+                        body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; line-height: 1.5; }
+                        h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 16px; }
+                        h1, h2, h3, h4 { page-break-after: avoid; }
                         img { max-width: 100%%; height: auto; }
-                        table { border-collapse: collapse; width: 100%%; }
-                        td, th { border: 1px solid #ccc; padding: 4px; }
-                        blockquote { border-left: 3px solid #94a3b8; margin: 10px 0; padding: 4px 12px; color: #475569; }
-                        pre { white-space: pre-wrap; font-family: monospace; background: #f3f4f6; padding: 8px; }
+                        table { border-collapse: collapse; width: 100%%; margin: 8px 0; -fs-table-paginate: paginate; }
+                        thead { display: table-header-group; }
+                        tr { page-break-inside: avoid; }
+                        td, th { border: 1px solid #ccc; padding: 6px; word-wrap: break-word; }
+                        blockquote { border-left: 3px solid #94a3b8; margin: 10px 0; padding: 4px 12px; color: #475569; page-break-inside: avoid; }
+                        pre { white-space: pre-wrap; font-family: monospace; background: #f3f4f6; padding: 8px; page-break-inside: avoid; }
                         a { color: #1d4ed8; text-decoration: underline; }
                         ul, ol { margin-top: 6px; margin-bottom: 6px; }
                     </style>
@@ -806,7 +819,8 @@ public class DocumentService {
                     %s
                 </body>
                 </html>
-                """.formatted(safeTitle, safeContent);
+                """
+                .formatted(safeTitle, safeContent);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
@@ -820,6 +834,7 @@ public class DocumentService {
 
     private String textoPlanoParaPdf(String contentHtml) {
         String text = contentHtml == null ? "" : Jsoup.parse(contentHtml).text().trim();
+        text = removerEmojis(text);
         if (text.isBlank()) {
             text = "No hay contenido para exportar.";
         }
@@ -834,8 +849,33 @@ public class DocumentService {
                 .replace("'", "&#39;");
     }
 
+    /**
+     * Rango de puntos de código Unicode que cubre emojis, banderas, pictogramas
+     * y modificadores relacionados (tono de piel, selector de variación, ZWJ).
+     * Helvetica (fuente usada por openhtmltopdf) no incluye estos glifos, por lo
+     * que sin este filtro se renderizan como "#" (glifo .notdef).
+     */
+    private static final Pattern EMOJI_PATTERN = Pattern.compile(
+            "[\\x{1F1E6}-\\x{1F1FF}" // banderas (indicadores regionales)
+                    + "\\x{1F300}-\\x{1FAFF}" // símbolos misc, transporte, pictogramas suplementarios
+                    + "\\x{2600}-\\x{27BF}" // símbolos misc y dingbats
+                    + "\\x{2B00}-\\x{2BFF}" // flechas y símbolos misc adicionales
+                    + "\\x{2300}-\\x{23FF}" // símbolos técnicos misc (reloj de arena, etc.)
+                    + "\\x{FE0F}" // selector de variación (emoji vs texto)
+                    + "\\x{200D}" // zero-width joiner (emojis compuestos)
+                    + "\\x{1F900}-\\x{1F9FF}" // símbolos suplementarios y pictogramas
+                    + "\\x{3030}\\x{303D}\\x{3297}\\x{3299}]");
+
+    private String removerEmojis(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        return EMOJI_PATTERN.matcher(text).replaceAll("");
+    }
+
     private String normalizarContenidoParaPdf(String content) {
-        Document source = Jsoup.parseBodyFragment(content == null ? "" : content);
+        String sinEmojis = removerEmojis(content);
+        Document source = Jsoup.parseBodyFragment(sinEmojis == null ? "" : sinEmojis);
 
         for (Element fileCard : source.select("div[data-file-card]")) {
             String url = fileCard.attr("data-file-url");
@@ -854,6 +894,9 @@ public class DocumentService {
                         "tr", "th", "td", "a", "img", "hr", "span")
                 .addAttributes("a", "href", "title")
                 .addAttributes("img", "src", "alt", "width", "height")
+                .addAttributes("td", "colspan", "rowspan")
+                .addAttributes("th", "colspan", "rowspan")
+                .addAttributes(":all", "style")
                 .addProtocols("a", "href", "http", "https", "mailto")
                 .addProtocols("img", "src", "http", "https", "data");
 
@@ -861,7 +904,15 @@ public class DocumentService {
         for (Element element : parsed.body().getAllElements()) {
             element.removeAttr("class");
             element.removeAttr("id");
-            element.removeAttr("style");
+            String styleValue = element.attr("style");
+            if (!styleValue.isBlank()) {
+                String safeStyle = sanitizeStyle(styleValue);
+                if (safeStyle.isBlank()) {
+                    element.removeAttr("style");
+                } else {
+                    element.attr("style", safeStyle);
+                }
+            }
             if (element.is("img")) {
                 String src = element.attr("src").toLowerCase(java.util.Locale.ROOT);
                 if (src.startsWith("data:image/svg") || src.endsWith(".svg")) {
@@ -874,6 +925,29 @@ public class DocumentService {
                 .charset(java.nio.charset.StandardCharsets.UTF_8)
                 .prettyPrint(false);
         return parsed.body().html();
+    }
+
+    private static final java.util.Set<String> ALLOWED_PDF_STYLE_PROPERTIES = java.util.Set.of(
+            "color", "background-color", "background", "font-weight", "font-style",
+            "text-decoration", "text-align", "border-color");
+
+    private String sanitizeStyle(String style) {
+        StringBuilder result = new StringBuilder();
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            String property = parts[0].trim().toLowerCase(java.util.Locale.ROOT);
+            String value = parts[1].trim();
+            String lowerValue = value.toLowerCase(java.util.Locale.ROOT);
+            if (ALLOWED_PDF_STYLE_PROPERTIES.contains(property)
+                    && !lowerValue.contains("url(")
+                    && !lowerValue.contains("expression")) {
+                result.append(property).append(": ").append(value).append("; ");
+            }
+        }
+        return result.toString().trim();
     }
 
     private String embedImagenesComoBase64(String content) {
@@ -1021,7 +1095,7 @@ public class DocumentService {
                     match.setContent(encontrada.getContent());
 
                     matches.add(match);
-                    break; 
+                    break;
                 }
             }
         }
