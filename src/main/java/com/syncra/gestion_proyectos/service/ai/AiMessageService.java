@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.service.ai;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,9 +28,12 @@ import com.syncra.gestion_proyectos.entity.ai.AiUsageLogEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
 import com.syncra.gestion_proyectos.entity.kanban.KanbanColumnEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
+import com.syncra.gestion_proyectos.entity.sprint.SprintEntity;
 import com.syncra.gestion_proyectos.entity.task.TaskEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.AiModelTierEnum;
 import com.syncra.gestion_proyectos.enums.AiRoleEnum;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.ai.AiMessageRepository;
 import com.syncra.gestion_proyectos.repository.ai.AiUsageLogRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
@@ -221,7 +225,7 @@ public class AiMessageService {
 			return null;
 		}
 
-		sortByUpdatedDesc(actas);
+		sortByCreatedDesc(actas);
 		DocumentEntity acta = actas.get(0);
 
 		List<CommitmentRow> rows = parseCommitmentsFromHtml(acta.getContent());
@@ -482,7 +486,7 @@ public class AiMessageService {
 		if (projectId == null) return null;
 		if (!matchesCreateActaIntent(text)) return null;
 
-		String kind = extractActaKind(text); // "SEGUIMIENTO" o "ENTREGA"
+		String kind = extractActaKind(text);
 		if (kind == null) return null;
 
 		List<DocumentEntity> actas = documents.findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
@@ -499,13 +503,9 @@ public class AiMessageService {
 		}
 
 		sortByCreatedDesc(actas);
-		log.info("Actas disponibles (por createdAt desc): {}", actas.stream()
-			.map(a -> a.getId() + ":'" + a.getTitle() + "':" + a.getMeetingType())
-			.limit(10).toList());
 		DocumentEntity base = findBaseActa(actas, extractBaseActaName(text));
 		if (base == null) base = actas.get(0);
 
-		// Tareas del tablero creadas desde la acta base
 		String tagPrefix = "Creado desde acta: \"" + base.getTitle() + "\"";
 		List<TaskEntity> baseTasks = new ArrayList<>();
 		for (TaskEntity t : tasks.findByProjectIdOrderByColumnIdAscPositionAsc(projectId)) {
@@ -564,7 +564,6 @@ public class AiMessageService {
 			newRows.add(row);
 		}
 
-				// Título único
 		String baseTitle = kind.equals("SEGUIMIENTO") ? "Acta de Seguimiento" : "Acta de Entrega";
 		String title = baseTitle + " - " + today;
 		int suffix = 2;
@@ -577,7 +576,6 @@ public class AiMessageService {
 			suffix++;
 		}
 
-		// Crear el documento
 		DocumentRequestDTO req = new DocumentRequestDTO();
 		req.setTitle(title);
 		req.setDocumentType(DocumentTypeEnum.MEETING_MINUTES);
@@ -587,7 +585,6 @@ public class AiMessageService {
 
 		var created = documentService.create(projectId, req, userId);
 
-		// Construir contenido y actualizar
 		String newContent = buildActaHtmlForFollowUp(base, kind, today, newRows);
 		if (newContent != null && !newContent.isBlank()) {
 			DocumentUpdateDTO upd = new DocumentUpdateDTO();
@@ -628,6 +625,352 @@ public class AiMessageService {
 		return result;
 	}
 
+	// =========================================================================
+	// DIRECTO: Crear acta de planificación o extraordinaria (sin LLM)
+	// =========================================================================
+
+	private AiMessageResponseDTO tryDirectCreatePlanningActa(
+			AiConversationEntity conversation, Long userId, String text) {
+		if (text == null || conversation == null) return null;
+		Long projectId = conversation.getProjectId();
+		if (projectId == null) return null;
+		if (!matchesPlanningActaIntent(text)) return null;
+
+		String kind = extractPlanningActaKind(text);
+		if (kind == null) return null;
+
+		LocalDate fecha = parseFechaFromText(text);
+		if (fecha == null) {
+			return buildDirectActaError(conversation, userId, text,
+					"No pude interpretar la fecha. Usa formatos como: 'para hoy', 'para mañana', 'para pasado mañana' o 'para el 2026-09-16'.");
+		}
+
+		String sprintQuery = parseSprintFromText(text);
+		SprintEntity sprint = null;
+		if (sprintQuery != null) {
+			sprint = findSprintByName(projectId, sprintQuery);
+			if (sprint == null) {
+				List<SprintEntity> allSprints = sprints.findByProjectId(projectId);
+				String disponibles = allSprints.stream().map(SprintEntity::getName)
+						.collect(java.util.stream.Collectors.joining(", "));
+				return buildDirectActaError(conversation, userId, text,
+						"No encontré un sprint llamado '" + sprintQuery + "' en este proyecto.\n"
+						+ "Sprints disponibles: " + (disponibles.isBlank() ? "ninguno" : disponibles));
+			}
+		}
+
+		Integer quarter = parseQuarterFromText(text);
+
+		List<String> tareas = parseTasksFromText(text);
+		if (tareas.isEmpty()) {
+			return buildDirectActaError(conversation, userId, text,
+					"No encontré tareas. Escríbelas así:\n"
+					+ "\"crea un acta de planificación para mañana, sprint 3, trimestre 6, tareas: probar IA | probar login | probar kanban\"");
+		}
+
+		List<Long> apprenticeIds = findApprenticeIds(projectId);
+		if (apprenticeIds.isEmpty()) {
+			return buildDirectActaError(conversation, userId, text,
+					"Este proyecto no tiene aprendices registrados. No puedo asignar tareas.");
+		}
+
+		List<KanbanColumnEntity> cols = columns.findByProjectIdOrderByPositionAsc(projectId);
+		if (cols.isEmpty()) {
+			return buildDirectActaError(conversation, userId, text,
+					"Este proyecto no tiene columnas en el tablero. Crea al menos una para poder asignar tareas.");
+		}
+		Long targetColumnId = cols.get(0).getId();
+
+		String baseTitle = kind.equals("EXTRAORDINARIA") ? "Acta Extraordinaria" : "Acta de Planificación";
+		String title = baseTitle + " - " + fecha;
+		int suffix = 2;
+		while (true) {
+			final String candidate = title;
+			boolean existe = documents.findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(projectId)
+					.stream().anyMatch(d -> d.getTitle().equalsIgnoreCase(candidate));
+			if (!existe) break;
+			title = baseTitle + " - " + fecha + " (" + suffix + ")";
+			suffix++;
+		}
+
+		DocumentRequestDTO req = new DocumentRequestDTO();
+		req.setTitle(title);
+		req.setDocumentType(DocumentTypeEnum.MEETING_MINUTES);
+		req.setMeetingType(kind);
+		req.setSprintId(sprint == null ? null : sprint.getId());
+		req.setQuarter(quarter);
+
+		var created = documentService.create(projectId, req, userId);
+
+		List<String> executed = new ArrayList<>();
+		executed.add("Documento creado: " + created.getTitle() + " (id=" + created.getId() + ")");
+		List<String> warnings = new ArrayList<>();
+		List<CommitmentRow> rows = new ArrayList<>();
+
+		for (int i = 0; i < tareas.size(); i++) {
+			String tarea = tareas.get(i);
+			Long assignedTo = apprenticeIds.get(i % apprenticeIds.size());
+
+			String nombreResp = "";
+			var u = users.findById(assignedTo).orElse(null);
+			if (u != null) nombreResp = ((u.getFirstName() == null ? "" : u.getFirstName()) + " "
+					+ (u.getLastName() == null ? "" : u.getLastName())).trim();
+
+			try {
+				TaskRequestDTO dto = new TaskRequestDTO();
+				dto.setTitle(tarea.length() > 300 ? tarea.substring(0, 300) : tarea);
+				dto.setDescription("Creado desde acta: \"" + created.getTitle()
+						+ "\" (id=" + created.getId() + ")\nEstado en el acta: Asignado");
+				dto.setColumnId(targetColumnId);
+				dto.setAssignedTo(assignedTo);
+				dto.setDueDate(fecha);
+				dto.setColor(TASK_COLORS[(int) (Math.random() * TASK_COLORS.length)]);
+
+				TaskResponseDTO taskCreated = taskService.create(projectId, userId, dto);
+				executed.add("Tarea creada: " + taskCreated.getTitle() + " (id=" + taskCreated.getId()
+						+ ", asignada a " + nombreResp + ")");
+			} catch (Exception ex) {
+				warnings.add("Error al crear tarea '" + tarea + "': " + ex.getMessage());
+				log.warn("Fallo creando tarea desde acta de planificación: {}", ex.getMessage());
+			}
+
+			CommitmentRow row = new CommitmentRow();
+			row.actividad = tarea;
+			row.responsable = nombreResp;
+			row.fechaEntrega = fecha.toString();
+			row.estado = "Asignado";
+			rows.add(row);
+		}
+
+		String newContent = buildPlanningActaHtml(kind, fecha, sprint, quarter, rows);
+		if (newContent != null && !newContent.isBlank()) {
+			DocumentUpdateDTO upd = new DocumentUpdateDTO();
+			upd.setContent(newContent);
+			documentService.update(created.getId(), upd, userId);
+		}
+
+		saveMessage(conversation.getId(), AiRoleEnum.USER, text.trim());
+
+		StringBuilder reply = new StringBuilder();
+		reply.append("Acta de ")
+				.append(kind.equals("EXTRAORDINARIA") ? "Extraordinaria" : "Planificación")
+				.append(" creada: \"").append(created.getTitle())
+				.append("\" (id=").append(created.getId()).append(").");
+		reply.append("\nFecha: ").append(fecha).append(".");
+		if (sprint != null) reply.append("\nSprint: ").append(sprint.getName()).append(".");
+		if (quarter != null) reply.append("\nTrimestre: ").append(quarter).append(".");
+		reply.append("\nTareas creadas en el tablero: ").append(rows.size()).append(".");
+		if (!warnings.isEmpty()) {
+			reply.append("\n\nAvisos:\n- ").append(String.join("\n- ", warnings));
+		}
+
+		AiMessageEntity assistant = saveMessage(conversation.getId(), AiRoleEnum.ASSISTANT, reply.toString());
+		AiMessageResponseDTO result = toResponse(assistant);
+		result.setExecutedActions(executed);
+		result.setModel("direct-acta-planning");
+		result.setLevel("advanced");
+		result.setFallback(false);
+		result.setStatusMessage("Creación determinista, no consumió cuota de IA.");
+		result.setQuota(quotaStatusForProject(projectId, AiModelTierEnum.PRIMARY));
+
+		log.info("Acta→planificación/extraordinaria creada: '{}' (id={}) con {} tareas",
+				created.getTitle(), created.getId(), rows.size());
+		return result;
+	}
+
+	private boolean matchesPlanningActaIntent(String text) {
+		if (text == null) return false;
+		String lower = normalizeForMatch(text);
+		boolean hasVerb = lower.matches(".*\\b(crea|crear|genera|generar|haz|hacer|nueva|nuevo|agrega|agregar)\\b.*");
+		if (!hasVerb) return false;
+		boolean hasActa = lower.matches(".*\\bactas?\\b.*");
+		if (!hasActa) return false;
+		boolean hasPlanningType = lower.contains("planificacion") || lower.contains("planeacion")
+				|| lower.contains("extraordinaria");
+		return hasPlanningType;
+	}
+
+	private String extractPlanningActaKind(String text) {
+		String lower = normalizeForMatch(text);
+		int idxExt = lower.indexOf("extraordinaria");
+		int idxPlan = Math.max(lower.indexOf("planificacion"), lower.indexOf("planeacion"));
+		if (idxExt < 0 && idxPlan < 0) return null;
+		if (idxExt >= 0 && idxPlan < 0) return "EXTRAORDINARIA";
+		if (idxPlan >= 0 && idxExt < 0) return "PLANEACION";
+		return idxExt < idxPlan ? "EXTRAORDINARIA" : "PLANEACION";
+	}
+
+	private LocalDate parseFechaFromText(String text) {
+		if (text == null) return null;
+		String lower = text.toLowerCase(java.util.Locale.ROOT);
+
+		// 1. Fecha explícita YYYY-MM-DD
+		java.util.regex.Matcher m = java.util.regex.Pattern
+				.compile("(\\d{4}-\\d{2}-\\d{2})").matcher(text);
+		if (m.find()) {
+			try {
+				return LocalDate.parse(m.group(1));
+			} catch (Exception ignored) { }
+		}
+
+		// 2. Fecha explícita DD/MM/YYYY o D/M/YYYY
+		java.util.regex.Matcher m2 = java.util.regex.Pattern
+				.compile("(\\d{1,2})/(\\d{1,2})/(\\d{4})").matcher(text);
+		if (m2.find()) {
+			try {
+				int day = Integer.parseInt(m2.group(1));
+				int month = Integer.parseInt(m2.group(2));
+				int year = Integer.parseInt(m2.group(3));
+				return LocalDate.of(year, month, day);
+			} catch (Exception ignored) { }
+		}
+
+		// 3. Relativas
+		if (lower.contains("pasado mañana") || lower.contains("pasado manana")) {
+			return LocalDate.now().plusDays(2);
+		}
+		if (lower.contains("mañana") || lower.contains("manana")) {
+			return LocalDate.now().plusDays(1);
+		}
+		if (lower.contains("hoy")) {
+			return LocalDate.now();
+		}
+		return null;
+	}
+
+	private String parseSprintFromText(String text) {
+		if (text == null) return null;
+		String lower = text.toLowerCase(java.util.Locale.ROOT);
+		java.util.regex.Matcher m = java.util.regex.Pattern
+				.compile("sprint\\s+([\\w\\-]+)").matcher(lower);
+		if (m.find()) {
+			return "sprint " + m.group(1);
+		}
+		return null;
+	}
+
+	private SprintEntity findSprintByName(Long projectId, String query) {
+		if (query == null || query.isBlank()) return null;
+		String q = normalizeForMatch(query);
+		for (SprintEntity s : sprints.findByProjectId(projectId)) {
+			if (s.getName() != null && normalizeForMatch(s.getName()).equals(q)) return s;
+		}
+		for (SprintEntity s : sprints.findByProjectId(projectId)) {
+			if (s.getName() != null && normalizeForMatch(s.getName()).contains(q)) return s;
+		}
+		return null;
+	}
+
+	private Integer parseQuarterFromText(String text) {
+		if (text == null) return null;
+		String lower = text.toLowerCase(java.util.Locale.ROOT);
+		java.util.regex.Matcher m = java.util.regex.Pattern
+				.compile("trimestre\\s+(\\d+)").matcher(lower);
+		if (m.find()) {
+			try {
+				return Integer.parseInt(m.group(1));
+			} catch (Exception ignored) { }
+		}
+		return null;
+	}
+
+	private List<String> parseTasksFromText(String text) {
+		List<String> result = new ArrayList<>();
+		if (text == null) return result;
+
+		int idx = text.toLowerCase(java.util.Locale.ROOT).indexOf("tareas:");
+		if (idx < 0) return result;
+
+		String rest = text.substring(idx + "tareas:".length()).trim();
+
+		// Cortar si aparece ", y que" o " y que todos" u otro separador de frase
+		String restLower = rest.toLowerCase(java.util.Locale.ROOT);
+		String[] stopMarkers = { ", y que ", " y que ", " donde ", " para que ", ", con " };
+		int cut = rest.length();
+		for (String stop : stopMarkers) {
+			int p = restLower.indexOf(stop);
+			if (p >= 0 && p < cut) cut = p;
+		}
+		rest = rest.substring(0, cut).trim();
+
+		// Separar por | ; o saltos de línea
+		String[] partes = rest.split("[|;\\n]");
+		for (String p : partes) {
+			String limpio = p.trim();
+			if (!limpio.isBlank()) result.add(limpio);
+		}
+		return result;
+	}
+
+	private List<Long> findApprenticeIds(Long projectId) {
+		List<Long> ids = new ArrayList<>();
+		for (ProjectMemberEntity m : members.findByIdProjectId(projectId)) {
+			Long uid = m.getId().getUserId();
+			UsersEntity u = users.findById(uid).orElse(null);
+			if (u == null) continue;
+			if (u.getRole() == RoleUserEnum.APPRENTICE && !ids.contains(uid)) {
+				ids.add(uid);
+			}
+		}
+		return ids;
+	}
+
+	private String buildPlanningActaHtml(String kind, LocalDate fecha, SprintEntity sprint,
+			Integer quarter, List<CommitmentRow> rows) {
+		String tipoLabel = kind.equals("EXTRAORDINARIA") ? "Extraordinaria" : "Planificación";
+		String motivo = kind.equals("EXTRAORDINARIA")
+				? "Reunión extraordinaria"
+				: "Planear el sprint";
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("<h1>PT-AR-01. Formato Acta de Reunion</h1>");
+		sb.append("<table><tr>")
+				.append("<th><p>Fecha</p></th><td><p>").append(fecha).append("</p></td>")
+				.append("<th><p>Hora</p></th><td><p>10:00</p></td>")
+				.append("<th><p>Proyecto/Modulo</p></th><td><p>Syncra</p></td>")
+				.append("</tr></table>");
+		sb.append("<table>")
+				.append("<tr><th><p>Lugar</p></th><td><p>Presencial</p></td></tr>")
+				.append("<tr><th><p>Motivo de la Reunion</p></th><td><p>").append(motivo).append("</p></td></tr>")
+				.append("<tr><th><p>Tipo</p></th><td><p>").append(tipoLabel).append("</p></td></tr>");
+		if (sprint != null) {
+			sb.append("<tr><th><p>Sprint</p></th><td><p>").append(sprint.getName()).append("</p></td></tr>");
+		}
+		if (quarter != null) {
+			sb.append("<tr><th><p>Trimestre</p></th><td><p>").append(quarter).append("</p></td></tr>");
+		}
+		sb.append("</table>");
+
+		sb.append("<h2>Orden del Dia</h2>");
+		sb.append("<p><em>Pendiente de diligenciar.</em></p>");
+
+		sb.append("<h2>Desarrollo de la Reunion</h2>");
+		sb.append("<p>Pendiente de diligenciar por el equipo.</p>");
+
+		sb.append("<h2>Compromisos</h2>");
+		sb.append("<p><em>Actividades resultantes de la reunion y responsable de su ejecucion.</em></p>");
+		sb.append("<table><tr>")
+				.append("<th><p>Actividad</p></th>")
+				.append("<th><p>Responsable</p></th>")
+				.append("<th><p>Fecha Entrega</p></th>")
+				.append("<th><p>Estado (Asignado/En Proceso/Terminado/Detenido)</p></th>")
+				.append("</tr>");
+		for (CommitmentRow r : rows) {
+			sb.append("<tr>")
+					.append("<td><p>").append(r.actividad == null ? "" : r.actividad).append("</p></td>")
+					.append("<td><p>").append(r.responsable == null ? "" : r.responsable).append("</p></td>")
+					.append("<td><p>").append(r.fechaEntrega == null ? "" : r.fechaEntrega).append("</p></td>")
+					.append("<td><p>").append(r.estado == null ? "" : r.estado).append("</p></td>")
+					.append("</tr>");
+		}
+		sb.append("</table>");
+		return sb.toString();
+	}
+
+	// =========================================================================
+	// Helpers comunes
+	// =========================================================================
+
 	private AiMessageResponseDTO buildDirectActaError(
 			AiConversationEntity conversation, Long userId, String text, String message) {
 		saveMessage(conversation.getId(), AiRoleEnum.USER, text.trim());
@@ -653,7 +996,6 @@ public class AiMessageService {
 
 	private String extractActaKind(String text) {
 		String lower = normalizeForMatch(text);
-		// Detectar "seguimiento" no como parte del nombre del acta base
 		int idxSeg = lower.indexOf("seguimiento");
 		int idxEnt = lower.indexOf("entrega");
 		if (idxSeg < 0 && idxEnt < 0) return null;
@@ -666,7 +1008,6 @@ public class AiMessageService {
 		if (text == null) return null;
 		String lower = text.toLowerCase(java.util.Locale.ROOT);
 
-		// Buscar la SEGUNDA ocurrencia de "acta" (la primera suele ser "acta de seguimiento")
 		int first = lower.indexOf("acta");
 		if (first < 0) return null;
 		int second = lower.indexOf("acta", first + 4);
@@ -693,8 +1034,7 @@ public class AiMessageService {
 		if (baseName == null || baseName.isBlank()) return null;
 		String baseNorm = normalizeForMatch(baseName);
 
-		// ¿Es un tipo ("planeacion", "seguimiento", "entrega")?
-		if (baseNorm.contains("planeacion") || baseNorm.contains("planeación")) {
+		if (baseNorm.contains("planeacion") || baseNorm.contains("planificacion")) {
 			for (DocumentEntity a : actas) {
 				if ("PLANEACION".equalsIgnoreCase(a.getMeetingType())) return a;
 			}
@@ -710,7 +1050,6 @@ public class AiMessageService {
 			}
 		}
 
-		// Es un nombre específico
 		for (DocumentEntity a : actas) {
 			if (a.getTitle() != null && normalizeForMatch(a.getTitle()).contains(baseNorm)) return a;
 		}
@@ -749,11 +1088,9 @@ public class AiMessageService {
 	}
 
 	private String computeNewState(TaskEntity t, List<KanbanColumnEntity> cols, LocalDate today) {
-		// 1. Fecha pasada → Terminado
 		if (t.getDueDate() != null && t.getDueDate().isBefore(today)) {
 			return "Terminado";
 		}
-		// 2. Según columna actual
 		KanbanColumnEntity col = null;
 		for (KanbanColumnEntity c : cols) {
 			if (c.getId().equals(t.getColumnId())) { col = c; break; }
@@ -782,7 +1119,6 @@ public class AiMessageService {
 		try {
 			org.jsoup.nodes.Document doc = org.jsoup.Jsoup.parse(baseHtml);
 
-			// Actualizar fecha en la primera tabla
 			for (org.jsoup.nodes.Element th : doc.select("th")) {
 				String t = th.text().trim().toLowerCase(java.util.Locale.ROOT);
 				if (t.equals("fecha")) {
@@ -793,7 +1129,6 @@ public class AiMessageService {
 					}
 				}
 			}
-			// Actualizar motivo
 			for (org.jsoup.nodes.Element th : doc.select("th")) {
 				String t = th.text().trim().toLowerCase(java.util.Locale.ROOT);
 				if (t.contains("motivo")) {
@@ -807,7 +1142,6 @@ public class AiMessageService {
 				}
 			}
 
-			// Reemplazar tabla de Compromisos
 			org.jsoup.nodes.Element heading = null;
 			for (org.jsoup.nodes.Element h : doc.select("h1, h2, h3, h4, h5")) {
 				if (h.text().toLowerCase(java.util.Locale.ROOT).contains("compromiso")) {
@@ -917,6 +1251,9 @@ public class AiMessageService {
 
 		AiMessageResponseDTO directEditResult = tryDirectDocumentEdit(conversation, userId, text);
 		if (directEditResult != null) return directEditResult;
+
+		AiMessageResponseDTO directPlanningResult = tryDirectCreatePlanningActa(conversation, userId, text);
+		if (directPlanningResult != null) return directPlanningResult;
 
 		AiMessageResponseDTO directActaResult = tryDirectCreateFollowUpActa(conversation, userId, text);
 		if (directActaResult != null) return directActaResult;
@@ -1504,7 +1841,7 @@ public class AiMessageService {
 							if (message.getData() != null) {
 								executed.add("Columna creada: " + message.getData().getName() + " (id="
 										+ message.getData().getId() + ")");
-														} else {
+							} else {
 								executed.add("No se pudo crear la columna: " + message.getMessage());
 							}
 						}
