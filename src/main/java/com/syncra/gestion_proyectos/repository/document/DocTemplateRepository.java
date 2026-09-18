@@ -20,6 +20,8 @@ public interface DocTemplateRepository extends JpaRepository<DocTemplateEntity, 
 
     List<DocTemplateEntity> findByParentTemplateIdIsNullAndPublishedTrueOrderByPositionAsc();
 
+    List<DocTemplateEntity> findByParentTemplateIdOrderByPositionAsc(Long parentTemplateId);
+
     @Query("SELECT t FROM DocTemplateEntity t WHERE t.parentTemplateId IS NULL AND t.published = true ORDER BY t.position ASC")
     List<DocTemplateEntity> findRootPublishedTemplates();
 }

@@ -170,14 +170,26 @@ public class DocumentService {
 
         Optional<DocTemplateEntity> templateFound = Optional.empty();
 
-        if (dto.getDocumentType() == DocumentTypeEnum.MEETING_MINUTES) {
-
-            templateFound = docTemplateRepository.findByCode("PT-AR-01");
-
-        } else if (dto.getTemplateId() != null) {
-
+        if (dto.getTemplateId() != null) {
             templateFound = docTemplateRepository.findById(dto.getTemplateId());
-
+        } else if (dto.getDocumentType() == DocumentTypeEnum.MEETING_MINUTES) {
+            Optional<DocTemplateEntity> parentOpt = docTemplateRepository.findByCode("PT-AR-01");
+            if (parentOpt.isPresent()) {
+                Long parentId = parentOpt.get().getId();
+                List<DocTemplateEntity> children = docTemplateRepository.findByParentTemplateIdOrderByPositionAsc(parentId);
+                if (children != null && !children.isEmpty()) {
+                    templateFound = Optional.of(children.get(children.size() - 1));
+                } else {
+                    List<DocTemplateEntity> legacyChildren = docTemplateRepository.findAll().stream()
+                            .filter(t -> t.getDescription() != null && t.getDescription().trim().toLowerCase().startsWith("plantilla hija de"))
+                            .toList();
+                    if (!legacyChildren.isEmpty()) {
+                        templateFound = Optional.of(legacyChildren.get(legacyChildren.size() - 1));
+                    } else {
+                        templateFound = parentOpt;
+                    }
+                }
+            }
         }
 
         if (templateFound.isPresent()) {
