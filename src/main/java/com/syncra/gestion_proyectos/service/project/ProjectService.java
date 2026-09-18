@@ -14,10 +14,16 @@ import com.syncra.gestion_proyectos.dto.project.ProjectRequestDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectResponseDTO;
 import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
 import com.syncra.gestion_proyectos.dto.project.InstructorStatsResponseDTO;
+import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
+import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
+import com.syncra.gestion_proyectos.enums.DocumentStatusEnum;
+import com.syncra.gestion_proyectos.enums.DocumentTypeEnum;
 import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
+import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
@@ -35,13 +41,10 @@ public class ProjectService {
     private final UsersRepository userRepository;
     private final ProjectMemberService projectMemberService;
     private final KanbanColumnService kanbanColumnService;
+    private final DocTemplateRepository docTemplateRepository;
+    private final DocumentRepository documentRepository;
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
-    /**
-     * Obtiene todos los proyectos registrados en el sistema
-     * 
-     * @return lista de proyectos
-     */
     public List<ProjectResponseDTO> getAll() {
         return toResponseList(projectRepository.findAll());
     }
@@ -57,13 +60,6 @@ public class ProjectService {
         return stats;
     }
 
-    /**
-     * Crear un nuevo proyecto
-     * 
-     * @param dto       datos necesarios para crear un proyecto
-     * @param createdBy id del usuario creador
-     * @return información del proyecto creado
-     */
     public ProjectResponseDTO getById(Long id) {
 
         ProjectEntity entity = findOrThrow(id);
@@ -78,6 +74,14 @@ public class ProjectService {
         return toResponseList(projectRepository.findByStatus(status));
     }
 
+    /**
+     * Crear un nuevo proyecto y generar automaticamente sus documentos por defecto
+     * a partir de las plantillas raiz publicadas.
+     * 
+     * @param dto       datos necesarios para crear un proyecto
+     * @param createdBy id del usuario creador
+     * @return información del proyecto creado
+     */
     @Transactional
     public ProjectResponseDTO create(ProjectRequestDTO dto, Long createdBy) {
 
@@ -104,18 +108,44 @@ public class ProjectService {
             log.warn("No se pudo agregar al creador como miembro: {}", e.getMessage());
         }
 
+        generarDocumentosPorDefecto(saved, createdBy);
+
         Map<Long, UsersEntity> creators = userRepository.findAllById(List.of(createdBy)).stream()
                 .collect(Collectors.toMap(UsersEntity::getId, u -> u));
 
         return toResponse(saved, creators);
     }
- /**
-     * Actualiza la información de un proyecto existente
-     * 
-     * @param id
-     * @param dto datos a actualizar
-     * @return información actualizada del proyecto
-     */
+
+    private void generarDocumentosPorDefecto(ProjectEntity project, Long createdBy) {
+        List<DocTemplateEntity> rootTemplates = docTemplateRepository
+                .findRootPublishedTemplates()
+                .stream()
+                .filter(template -> {
+                    String desc = template.getDescription();
+                    return desc == null || !desc.trim().toLowerCase().startsWith("plantilla hija de");
+                })
+                .toList();
+
+        if (rootTemplates.isEmpty()) {
+            return;
+        }
+
+        List<DocumentEntity> documentsToSave = rootTemplates.stream().map(template -> {
+            DocumentEntity doc = new DocumentEntity();
+            doc.setProjectId(project.getId());
+            doc.setTemplateId(template.getId());
+            doc.setDocumentType(DocumentTypeEnum.DOCUMENT);
+            doc.setTitle(template.getTitle());
+            doc.setContent(template.getDefaultContent());
+            doc.setSortOrder(template.getPosition() != null ? template.getPosition().intValue() : 0);
+            doc.setStatus(DocumentStatusEnum.DRAFT);
+            doc.setCreatedBy(createdBy);
+            return doc;
+        }).toList();
+
+        documentRepository.saveAll(documentsToSave);
+    }
+
     @Transactional
     public ProjectResponseDTO update(Long id, ProjectUpdateDTO dto) {
         ProjectEntity entity = findOrThrow(id);
@@ -144,13 +174,7 @@ public class ProjectService {
     public void delete(Long id) {
         projectRepository.delete(findOrThrow(id));
     }
-    /**
-     * Actualiza el estado de un proyecto
-     * 
-     * @param id
-     * @param status estado del proyecto
-     * @return información actualizada del proyecto
-     */
+
     @Transactional
     public ProjectResponseDTO updateStatus(Long id, ProjectStatusEnum status) {
         ProjectEntity entity = findOrThrow(id);

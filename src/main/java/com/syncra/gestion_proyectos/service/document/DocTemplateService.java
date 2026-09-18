@@ -19,7 +19,6 @@ import com.syncra.gestion_proyectos.service.realtime.DocTemplateRealtimeService;
 
 import lombok.RequiredArgsConstructor;
 
-
 @Service
 @RequiredArgsConstructor
 public class DocTemplateService {
@@ -30,16 +29,6 @@ public class DocTemplateService {
 
     private final DocTemplateRealtimeService docTemplateRealtimeService;
 
-    /**
-     * Obtiene el catálogo completo de plantillas ordenado por posición.
-     * No incluye el contenido base de cada plantilla (defaultContent),
-     * solo la información necesaria para listarlas. Sí incluye las
-     * secciones (con su propio defaultContent), porque el frontend las
-     * necesita para poder ofrecer la reutilización de información antes
-     * de que el usuario entre a ver la plantilla completa.
-     *
-     * @return lista de plantillas disponibles
-     */
     public List<DocTemplateResponseDTO> listAll() {
 
         List<DocTemplateEntity> templates = docTemplateRepository.findAllByOrderByPositionAsc();
@@ -55,7 +44,7 @@ public class DocTemplateService {
     public List<DocTemplateResponseDTO> listPublished() {
 
         List<DocTemplateEntity> templates = docTemplateRepository
-            .findAllByPublishedTrueAndParentTemplateIdIsNullOrderByPositionAsc();
+            .findRootPublishedTemplates();
         List<DocTemplateResponseDTO> response = new ArrayList<>();
 
         for (DocTemplateEntity template : templates) {
@@ -71,13 +60,6 @@ public class DocTemplateService {
         return response;
     }
 
-    /**
-     * Obtiene una plantilla puntual, incluyendo su contenido base,
-     * útil para previsualizarla antes de crear un documento con ella.
-     *
-     * @param id
-     * @return plantilla encontrada, null si no existe
-     */
     public DocTemplateResponseDTO getById(Long id) {
 
         Optional<DocTemplateEntity> templateFound = docTemplateRepository.findById(id);
@@ -114,6 +96,9 @@ public class DocTemplateService {
         template.setDraftTitle(request.getTitle().trim());
         template.setDraftDescription(request.getDescription());
         template.setDraftContent(request.getDefaultContent() == null ? "<p></p>" : request.getDefaultContent());
+        if (request.getParentTemplateId() != null) {
+            template.setParentTemplateId(request.getParentTemplateId());
+        }
         DocTemplateEntity saved = docTemplateRepository.save(template);
         docTemplateRealtimeService.publishChanged(saved.getId(), "UPDATED");
         return toDraftResponse(saved);
@@ -147,13 +132,13 @@ public class DocTemplateService {
         docTemplateRealtimeService.publishChanged(id, "DELETED");
     }
 
-        public DocTemplateResponseDTO getDraftById(Long id) {
+    public DocTemplateResponseDTO getDraftById(Long id) {
         DocTemplateEntity template = docTemplateRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("La plantilla no existe"));
         return toDraftResponse(template);
-        }
+    }
 
-        private DocTemplateResponseDTO toDraftResponse(DocTemplateEntity template) {
+    private DocTemplateResponseDTO toDraftResponse(DocTemplateEntity template) {
         DocTemplateResponseDTO response = toResponse(template, true);
         response.setTitle(template.getDraftTitle() != null ? template.getDraftTitle() : template.getTitle());
         response.setDescription(template.getDraftDescription() != null
@@ -161,15 +146,8 @@ public class DocTemplateService {
         response.setDefaultContent(template.getDraftContent() != null
             ? template.getDraftContent() : template.getDefaultContent());
         return response;
-        }
+    }
 
-    /**
-     * Convierte una entidad en un dto de respuesta
-     *
-     * @param template entidad a convertir
-     * @param includeContent si se debe incluir el contenido base de la plantilla
-     * @return dto con la información de la plantilla
-     */
     private DocTemplateResponseDTO toResponse(DocTemplateEntity template, boolean includeContent) {
 
         DocTemplateResponseDTO response = new DocTemplateResponseDTO();
@@ -193,14 +171,13 @@ public class DocTemplateService {
 
     private List<DocTemplateSectionDTO> getSections(Long templateId) {
 
+        List<DocTemplateSectionDTO> response = new ArrayList<>();
         List<DocTemplateSectionEntity> sections;
         try {
             sections = docTemplateSectionRepository.findByTemplateIdOrderByPositionAsc(templateId);
         } catch (DataAccessException exception) {
-            return new ArrayList<>();
+            return response;
         }
-
-        List<DocTemplateSectionDTO> response = new ArrayList<>();
 
         for (DocTemplateSectionEntity section : sections) {
 
