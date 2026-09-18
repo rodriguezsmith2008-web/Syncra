@@ -207,6 +207,12 @@ public class UserController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             UserMessage response = userService.updateProfile(userId, update);
+
+            if ("Correo ya existente".equals(response.getUserMessage())
+                    || "usuario no encontrado".equalsIgnoreCase(response.getUserMessage())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
+
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
         } catch (Exception e) {
             e.printStackTrace();
