@@ -1,12 +1,14 @@
 package com.syncra.gestion_proyectos.service.project;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,7 @@ public class ProjectService {
     private final KanbanColumnService kanbanColumnService;
     private final DocTemplateRepository docTemplateRepository;
     private final DocumentRepository documentRepository;
+    private final JdbcTemplate jdbcTemplate;
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     public List<ProjectResponseDTO> getAll() {
@@ -172,7 +175,51 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long id) {
-        projectRepository.delete(findOrThrow(id));
+        findOrThrow(id);
+
+        // El esquema usa claves foráneas sin cascada JPA; se eliminan primero las
+        // filas dependientes para evitar errores de integridad referencial.
+        jdbcTemplate.update("DELETE FROM notifications WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM activity_log WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM project_chat_messages WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM ai_usage_logs WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM ai_project_quotas WHERE project_id = ?", id);
+
+        jdbcTemplate.update(
+            "DELETE FROM private_messages WHERE conversation_id IN "
+                + "(SELECT id FROM private_conversations WHERE project_id = ?)",
+            id);
+        jdbcTemplate.update("DELETE FROM private_conversations WHERE project_id = ?", id);
+
+        jdbcTemplate.update(
+            "DELETE FROM ai_messages WHERE conversation_id IN "
+                + "(SELECT id FROM ai_conversations WHERE project_id = ?)",
+            id);
+        jdbcTemplate.update("DELETE FROM ai_conversations WHERE project_id = ?", id);
+
+        jdbcTemplate.update(
+            "DELETE FROM document_comments WHERE document_id IN "
+                + "(SELECT id FROM documents WHERE project_id = ?)",
+            id);
+        jdbcTemplate.update("UPDATE documents SET parent_document_id = NULL WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM documents WHERE project_id = ?", id);
+
+        jdbcTemplate.update(
+            "DELETE FROM task_comments WHERE task_id IN "
+                + "(SELECT id FROM tasks WHERE project_id = ?)",
+            id);
+        jdbcTemplate.update(
+            "DELETE FROM task_history WHERE task_id IN "
+                + "(SELECT id FROM tasks WHERE project_id = ?)",
+            id);
+        jdbcTemplate.update("DELETE FROM tasks WHERE project_id = ?", id);
+
+        jdbcTemplate.update("DELETE FROM files WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM external_links WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM sprints WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM kanban_columns WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM project_members WHERE project_id = ?", id);
+        jdbcTemplate.update("DELETE FROM projects WHERE id = ?", id);
     }
 
     @Transactional
@@ -202,12 +249,19 @@ public class ProjectService {
         Map<Long, UsersEntity> creatorsById = userRepository.findAllById(creatorIds).stream()
                 .collect(Collectors.toMap(UsersEntity::getId, u -> u));
 
+        Map<Long, long[]> documentProgress = getDocumentProgress(projects);
+
         return projects.stream()
-                .map(p -> toResponse(p, creatorsById))
+            .map(p -> toResponse(p, creatorsById, documentProgress.get(p.getId())))
                 .toList();
     }
 
     private ProjectResponseDTO toResponse(ProjectEntity e, Map<Long, UsersEntity> creatorsById) {
+        return toResponse(e, creatorsById, null);
+        }
+
+        private ProjectResponseDTO toResponse(ProjectEntity e, Map<Long, UsersEntity> creatorsById,
+            long[] documentProgress) {
         ProjectResponseDTO r = new ProjectResponseDTO();
         r.setId(e.getId());
         r.setName(e.getName());
@@ -219,12 +273,41 @@ public class ProjectService {
         r.setCreatedBy(e.getCreatedBy());
         r.setCreatedAt(e.getCreatedAt());
 
+        long totalDocuments = documentProgress == null ? 0 : documentProgress[0];
+        long approvedDocuments = documentProgress == null ? 0 : documentProgress[1];
+        r.setTotalDocuments(totalDocuments);
+        r.setApprovedDocuments(approvedDocuments);
+        r.setProgress(totalDocuments == 0 ? 0 : (int) Math.round(approvedDocuments * 100.0 / totalDocuments));
+
         UsersEntity creator = creatorsById.get(e.getCreatedBy());
         r.setCreatedByName(creator != null
                 ? creator.getFirstName() + " " + creator.getLastName()
                 : "Usuario desconocido");
 
         return r;
+    }
+
+    private Map<Long, long[]> getDocumentProgress(List<ProjectEntity> projects) {
+        Map<Long, long[]> result = new HashMap<>();
+        if (projects.isEmpty()) {
+            return result;
+        }
+
+        String placeholders = projects.stream().map(project -> "?").collect(Collectors.joining(","));
+        List<Long> projectIds = projects.stream().map(ProjectEntity::getId).toList();
+        String sql = "SELECT project_id, COUNT(*) AS total_documents, "
+                + "SUM(CASE WHEN status = 'APPROVED' THEN 1 ELSE 0 END) AS approved_documents "
+                + "FROM documents WHERE deleted_at IS NULL AND document_type = 'DOCUMENT' "
+                + "AND parent_document_id IS NULL AND project_id IN (" + placeholders + ") "
+                + "GROUP BY project_id";
+
+        jdbcTemplate.queryForList(sql, projectIds.toArray()).forEach(row -> result.put(
+            ((Number) row.get("project_id")).longValue(),
+            new long[] {
+                ((Number) row.get("total_documents")).longValue(),
+                ((Number) row.get("approved_documents")).longValue()
+            }));
+        return result;
     }
 
     public List<ProjectResponseDTO> getMine(Long userId) {

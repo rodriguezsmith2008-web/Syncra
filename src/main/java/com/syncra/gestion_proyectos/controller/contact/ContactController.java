@@ -3,6 +3,8 @@ package com.syncra.gestion_proyectos.controller.contact;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 import com.syncra.gestion_proyectos.dto.contact.ContactRequestDto;
 import com.syncra.gestion_proyectos.service.email.ContactService;
 
@@ -19,8 +21,8 @@ public class ContactController {
     }
 
     @PostMapping
-    public ResponseEntity<String> sendMessage(@Valid @RequestBody ContactRequestDto dto) {
+    public ResponseEntity<Map<String, String>> sendMessage(@Valid @RequestBody ContactRequestDto dto) {
         contactService.sendContactMessage(dto);
-        return ResponseEntity.ok("mensaje enviado correctamente");
+        return ResponseEntity.ok(Map.of("message", "Mensaje enviado correctamente."));
     }
 }

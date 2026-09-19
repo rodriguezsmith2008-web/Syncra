@@ -23,6 +23,7 @@ import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.service.document.DocumentService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -211,9 +212,11 @@ public class DocumentController {
 
         Long userId = (Long) request.getAttribute("userId");
 
-        return ResponseEntity.ok(
-                documentService.updateStatus(documentId, dto, userId)
-        );
+        DocumentResponseDTO updated = documentService.updateStatus(documentId, dto, userId);
+        if (updated == null) {
+            throw new EntityNotFoundException("Documento no encontrado");
+        }
+        return ResponseEntity.ok(updated);
     }
 
     /**

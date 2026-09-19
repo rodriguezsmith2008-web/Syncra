@@ -598,6 +598,12 @@ public class DocumentService {
             DocumentStatusUpdateDTO dto,
             Long updatedBy) {
 
+        if (dto == null || dto.getStatus() == null
+            || (dto.getStatus() != com.syncra.gestion_proyectos.enums.DocumentStatusEnum.DRAFT
+                && dto.getStatus() != com.syncra.gestion_proyectos.enums.DocumentStatusEnum.APPROVED)) {
+            throw new IllegalArgumentException("El estado del documento debe ser DRAFT o APPROVED.");
+        }
+
         DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
 
         if (entity == null) {
@@ -613,7 +619,9 @@ public class DocumentService {
                 "cambió el estado del documento a " + dto.getStatus().name(),
                 updatedBy);
 
-        return toResponse(saved, null);
+        DocumentResponseDTO response = toResponse(saved, null);
+        documentRealtimeService.publishUpdated(response);
+        return response;
     }
 
     private void appendChange(StringBuilder changes, String change) {
