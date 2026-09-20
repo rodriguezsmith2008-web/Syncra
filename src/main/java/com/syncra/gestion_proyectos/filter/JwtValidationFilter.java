@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.syncra.gestion_proyectos.service.auth.JwtService;
+import com.syncra.gestion_proyectos.security.JsonAuthenticationEntryPoint;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,6 +24,7 @@ public class JwtValidationFilter extends OncePerRequestFilter {
      * Servicio JWT
      */
     private final JwtService jwtService;
+    private final JsonAuthenticationEntryPoint authenticationEntryPoint;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -35,13 +37,9 @@ public class JwtValidationFilter extends OncePerRequestFilter {
 
         // Verifica formato Bearer
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-
-            response.getWriter()
-                    .write("{\"error\": \"Header Authorization is missing\"}");
-
+            authenticationEntryPoint.commence(request, response,
+                new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
+                    "Header Authorization is missing"));
             return;
         }
 
@@ -67,21 +65,15 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                 filterChain.doFilter(request, response);
 
             } else {
-
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-
-                response.getWriter()
-                        .write("{\"error\": \"Token invalid or expired\"}");
+                authenticationEntryPoint.commence(request, response,
+                    new org.springframework.security.authentication.BadCredentialsException(
+                        "Token invalid or expired"));
             }
 
         } catch (Exception e) {
-
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-
-            response.getWriter()
-                    .write("{\"error\": \"Validation failed\"}");
+            authenticationEntryPoint.commence(request, response,
+                new org.springframework.security.authentication.BadCredentialsException(
+                    "Validation failed", e));
 
             log.error("JWT Error: {}", e.getMessage());
         }
