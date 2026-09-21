@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -187,6 +188,23 @@ public class UserController {
             Long userId = (Long) request.getAttribute("userId");
             UserResponseDTO response = userService.getUserById(userId);
             return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
+    }
+
+    @PatchMapping("/{id}/onboarding")
+    public ResponseEntity<UserResponseDTO> completeOnboarding(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        try {
+            Long authenticatedUserId = (Long) request.getAttribute("userId");
+            if (!id.equals(authenticatedUserId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(null);
+            }
+
+            return ResponseEntity.ok(userService.markOnboardingSeen(id));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);

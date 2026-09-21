@@ -69,4 +69,7 @@ public class UsersEntity {
     @Column(name = "must_change_password")
     private Boolean mustChangePassword = false;
 
+    @Column(name = "has_seen_onboarding", nullable = false)
+    private Boolean hasSeenOnboarding = false;
+
 }

@@ -68,6 +68,7 @@ public class UserService {
             dto.setGroupName(user.getGroupName());
             dto.setAvatarUrl(user.getAvatarUrl());
             dto.setStatus(user.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
             response.add(dto);
         }
@@ -102,8 +103,20 @@ public class UserService {
         response.setGroupName(user.getGroupName());
         response.setAvatarUrl(user.getAvatarUrl());
         response.setStatus(user.getStatus().name());
+        response.setHasProject(user.getRole() == RoleUserEnum.APPRENTICE
+            ? projectMemberRepository.existsByIdUserId(user.getId())
+            : null);
+        response.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
         return response;
+    }
+
+    public UserResponseDTO markOnboardingSeen(Long id) {
+        UsersEntity user = usersRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+        user.setHasSeenOnboarding(true);
+        usersRepository.save(user);
+        return getUserById(id);
     }
 
     /**
@@ -348,6 +361,7 @@ public class UserService {
             dto.setGroupName(userfound.getGroupName());
             dto.setAvatarUrl(userfound.getAvatarUrl());
             dto.setStatus(userfound.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(userfound.getHasSeenOnboarding()));
 
             dtos.add(dto);
         }
@@ -381,6 +395,7 @@ public class UserService {
         response.setGroupName(user.getGroupName());
         response.setAvatarUrl(user.getAvatarUrl());
         response.setStatus(user.getStatus().name());
+        response.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
         return response;
     }
@@ -407,6 +422,7 @@ public class UserService {
             dto.setGroupName(userfound.getGroupName());
             dto.setAvatarUrl(userfound.getAvatarUrl());
             dto.setStatus(userfound.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(userfound.getHasSeenOnboarding()));
 
             dtos.add(dto);
         }
@@ -613,6 +629,7 @@ private UserResponseDTO toUserResponseDTO(UsersEntity user) {
     dto.setGroupName(user.getGroupName());
     dto.setAvatarUrl(user.getAvatarUrl());
     dto.setStatus(user.getStatus().name());
+    dto.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
     if (user.getRole() == RoleUserEnum.APPRENTICE) {
         boolean hasProject = projectMemberRepository.existsByIdUserId(user.getId());
