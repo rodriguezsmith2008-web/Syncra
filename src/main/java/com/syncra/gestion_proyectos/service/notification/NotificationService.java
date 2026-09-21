@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 
 import com.syncra.gestion_proyectos.dto.notifications.NotificationResponseDTO;
 import com.syncra.gestion_proyectos.entity.notification.NotificationEntity;
@@ -115,6 +116,7 @@ public class NotificationService {
     }
 
     @Transactional
+    @Async
     public void crear(Long userId, Long actorUserId, Long projectId, Long taskId, Long documentId, Long commentId,
             String type, String message) {
 

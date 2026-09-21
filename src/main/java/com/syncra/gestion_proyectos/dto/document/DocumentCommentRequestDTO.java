@@ -8,4 +8,6 @@ public class DocumentCommentRequestDTO {
 
     private String content;
     private Long parentCommentId; 
+    private String anchorId;
+    private String anchorText;
 }

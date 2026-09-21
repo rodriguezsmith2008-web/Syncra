@@ -438,8 +438,13 @@ public class DocumentService {
         newComment.setUserId(userId);
         newComment.setContent(dto.getContent());
         newComment.setParentCommentId(dto.getParentCommentId());
+        newComment.setAnchorId(dto.getAnchorId());
+        newComment.setAnchorText(dto.getAnchorText());
 
         documentCommentRepository.save(newComment);
+        message.setComment(toCommentResponse(
+            newComment,
+            usersRepository.findById(userId).orElse(null)));
 
         activityLogService.log(document.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, documentId,
                 ActivityActionEnum.UPDATED,
@@ -554,6 +559,8 @@ public class DocumentService {
         response.setContent(commentEntity.getContent());
         response.setCreatedAt(commentEntity.getCreatedAt());
         response.setParentCommentId(commentEntity.getParentCommentId());
+        response.setAnchorId(commentEntity.getAnchorId());
+        response.setAnchorText(commentEntity.getAnchorText());
 
         if (user != null) {
             response.setUserFullName(user.getFirstName() + " " + user.getLastName());

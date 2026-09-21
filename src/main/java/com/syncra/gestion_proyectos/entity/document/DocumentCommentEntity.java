@@ -34,6 +34,12 @@ public class DocumentCommentEntity {
 
     @Column(name = "parent_comment_id")
     private Long parentCommentId;
+
+    @Column(name = "anchor_id", length = 100)
+    private String anchorId;
+
+    @Column(name = "anchor_text", length = 300)
+    private String anchorText;
     
     @PrePersist
     public void prePersist(){
