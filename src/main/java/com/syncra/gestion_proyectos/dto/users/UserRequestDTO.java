@@ -36,6 +36,8 @@ public class UserRequestDTO {
 
     private String avatarUrl;
 
+    private String avatarPublicId;
+
     private String status;
 
 }

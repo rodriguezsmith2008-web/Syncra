@@ -15,6 +15,8 @@ public class UserUpdateDTO {
 
     private String avatarUrl;
 
+    private String avatarPublicId;
+
     private String status;
 
     private String role;

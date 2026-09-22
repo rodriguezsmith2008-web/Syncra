@@ -14,6 +14,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentRequestDTO;
 import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
@@ -43,6 +45,8 @@ import com.syncra.gestion_proyectos.repository.sprint.SprintRepository;
 
 import java.io.ByteArrayOutputStream;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -56,6 +60,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final UsersRepository usersRepository;
 
@@ -73,6 +79,7 @@ public class DocumentService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ActivityLogService activityLogService;
     private final SprintRepository sprintRepository;
+    private final Cloudinary cloudinary;
     private final ProjectService projectService;
 
     /**
@@ -319,7 +326,17 @@ public class DocumentService {
 
         if (dto.isCoverImageUrlProvided()
                 && !java.util.Objects.equals(dto.getCoverImageUrl(), documentToUpdate.getCoverImageUrl())) {
+            String previousCoverPublicId = documentToUpdate.getCoverImagePublicId();
+            if (previousCoverPublicId != null) {
+                try {
+                    cloudinary.uploader().destroy(previousCoverPublicId,
+                            ObjectUtils.asMap("resource_type", "image"));
+                } catch (Exception exception) {
+                    log.warn("No se pudo eliminar la portada {} de Cloudinary", previousCoverPublicId, exception);
+                }
+            }
             documentToUpdate.setCoverImageUrl(dto.getCoverImageUrl());
+            documentToUpdate.setCoverImagePublicId(extraerPublicIdCloudinary(dto.getCoverImageUrl()));
             appendChange(changes, dto.getCoverImageUrl() == null
                     ? "eliminó la imagen de portada"
                     : "actualizó la imagen de portada");
@@ -379,6 +396,21 @@ public class DocumentService {
 
         message.setMessage("Documento actualizado correctamente.");
         return message;
+    }
+
+    private String extraerPublicIdCloudinary(String url) {
+        if (url == null || !url.contains("res.cloudinary.com") || !url.contains("/upload/")) {
+            return null;
+        }
+        String value = url.substring(url.indexOf("/upload/") + "/upload/".length());
+        if (value.startsWith("v")) {
+            int versionEnd = value.indexOf('/');
+            if (versionEnd > 0) {
+                value = value.substring(versionEnd + 1);
+            }
+        }
+        int extensionIndex = value.lastIndexOf('.');
+        return extensionIndex > 0 ? value.substring(0, extensionIndex) : value;
     }
 
     /**

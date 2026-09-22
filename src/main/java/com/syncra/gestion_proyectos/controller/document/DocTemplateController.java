@@ -48,6 +48,12 @@ public class DocTemplateController {
         return ResponseEntity.ok(docTemplateService.listPublished());
     }
 
+    @RequireRole(RoleUserEnum.APPRENTICE)
+    @GetMapping("/published/tree")
+    public ResponseEntity<List<DocTemplateResponseDTO>> listPublishedTree() {
+        return ResponseEntity.ok(docTemplateService.listPublishedTree());
+    }
+
     /**
      * Obtiene una plantilla puntual junto con su contenido base
      *

@@ -23,7 +23,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class KanbanColumnService {
 
-    private static final String COMPLETED_COLUMN_NAME = "Completado";
+    private static final String COMPLETED_COLUMN_NAME = "Completada";
+    private static final String TODO_COLUMN_NAME = "Por hacer";
+    private static final String IN_PROGRESS_COLUMN_NAME = "En progreso";
+    private static final String REVIEW_COLUMN_NAME = "En revisión";
 
     private final KanbanColumnRepository repository;
     private final ActivityLogService activityLogService;
@@ -97,22 +100,36 @@ public class KanbanColumnService {
 
     @Transactional
     public void ensureCompletedColumn(Long projectId, Long userId) {
-        if (repository.findByProjectIdAndNameIgnoreCase(projectId, COMPLETED_COLUMN_NAME) != null) {
-            moveCompletedColumnToEnd(projectId);
+        ensureDefaultColumn(projectId, userId, TODO_COLUMN_NAME, "#64748b", false);
+        ensureDefaultColumn(projectId, userId, IN_PROGRESS_COLUMN_NAME, "#2563eb", false);
+        ensureDefaultColumn(projectId, userId, REVIEW_COLUMN_NAME, "#f59e0b", false);
+        KanbanColumnEntity legacyCompleted = repository.findByProjectIdAndNameIgnoreCase(projectId, "Completado");
+        if (legacyCompleted != null && repository.findByProjectIdAndNameIgnoreCase(projectId, COMPLETED_COLUMN_NAME) == null) {
+            legacyCompleted.setName(COMPLETED_COLUMN_NAME);
+            legacyCompleted.setColor("#16a34a");
+            legacyCompleted.setIsFinal(true);
+            repository.save(legacyCompleted);
+        }
+        ensureDefaultColumn(projectId, userId, COMPLETED_COLUMN_NAME, "#16a34a", true);
+        moveCompletedColumnToEnd(projectId);
+    }
+
+    private void ensureDefaultColumn(Long projectId, Long userId, String name, String color, boolean isFinal) {
+        if (repository.findByProjectIdAndNameIgnoreCase(projectId, name) != null) {
             return;
         }
 
         KanbanColumnEntity entity = new KanbanColumnEntity();
         entity.setProjectId(projectId);
-        entity.setName(COMPLETED_COLUMN_NAME);
-        entity.setColor("#16a34a");
-        entity.setIsFinal(true);
+        entity.setName(name);
+        entity.setColor(color);
+        entity.setIsFinal(isFinal);
         entity.setPosition(nextPosition(projectId));
         repository.save(entity);
 
         if (userId != null) {
             activityLogService.log(projectId, ActivityEntityTypeEnum.KANBAN_COLUMN, entity.getId(),
-                    ActivityActionEnum.CREATED, "creó la columna \"" + COMPLETED_COLUMN_NAME + "\"", userId);
+                    ActivityActionEnum.CREATED, "creó la columna \"" + name + "\"", userId);
         }
     }
 

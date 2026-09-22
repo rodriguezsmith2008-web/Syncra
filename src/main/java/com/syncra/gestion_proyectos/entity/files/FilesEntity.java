@@ -30,6 +30,12 @@ public class FilesEntity {
     @Column(name = "url", nullable = false, length = 1000)
     private String url;
 
+    @Column(name = "cloudinary_public_id", length = 500)
+    private String cloudinaryPublicId;
+
+    @Column(name = "cloudinary_resource_type", length = 20)
+    private String cloudinaryResourceType;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FilesTypeEnum type = FilesTypeEnum.OTHER;

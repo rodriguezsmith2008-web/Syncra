@@ -51,6 +51,9 @@ public class UsersEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String avatarUrl;
 
+    @Column(name = "avatar_public_id", length = 500)
+    private String avatarPublicId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserStatusEnum status = UserStatusEnum.IN_TRAINING;

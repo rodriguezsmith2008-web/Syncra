@@ -19,6 +19,7 @@ import com.syncra.gestion_proyectos.dto.project.ProjectUpdateDTO;
 import com.syncra.gestion_proyectos.dto.project.InstructorStatsResponseDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.entity.files.FilesEntity;
 import com.syncra.gestion_proyectos.entity.project.ProjectEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.DocumentStatusEnum;
@@ -27,11 +28,14 @@ import com.syncra.gestion_proyectos.enums.ProjectStatusEnum;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.document.DocTemplateRepository;
 import com.syncra.gestion_proyectos.repository.document.DocumentRepository;
+import com.syncra.gestion_proyectos.repository.files.FileRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.kanban.KanbanColumnService;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +53,8 @@ public class ProjectService {
     private final DocumentRepository documentRepository;
     private final JdbcTemplate jdbcTemplate;
     private final NotificationService notificationService;
+    private final FileRepository fileRepository;
+    private final Cloudinary cloudinary;
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     public List<ProjectResponseDTO> getAll() {
@@ -179,6 +185,18 @@ public class ProjectService {
     @Transactional
     public void delete(Long id) {
         findOrThrow(id);
+
+        for (FilesEntity file : fileRepository.findByProjectId(id)) {
+            if (file.getCloudinaryPublicId() == null) {
+                continue;
+            }
+            try {
+                cloudinary.uploader().destroy(file.getCloudinaryPublicId(),
+                        ObjectUtils.asMap("resource_type", file.getCloudinaryResourceType()));
+            } catch (Exception exception) {
+                log.warn("No se pudo eliminar el archivo {} de Cloudinary", file.getCloudinaryPublicId(), exception);
+            }
+        }
 
         // El esquema usa claves foráneas sin cascada JPA; se eliminan primero las
         // filas dependientes para evitar errores de integridad referencial.

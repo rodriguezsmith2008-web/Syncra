@@ -60,6 +60,21 @@ public class DocTemplateService {
         return response;
     }
 
+    public List<DocTemplateResponseDTO> listPublishedTree() {
+        List<DocTemplateResponseDTO> response = new ArrayList<>();
+        for (DocTemplateEntity template : docTemplateRepository.findRootPublishedTemplates()) {
+            DocTemplateResponseDTO root = toResponse(template, false);
+            List<DocTemplateResponseDTO> children = new ArrayList<>();
+            for (DocTemplateEntity child : docTemplateRepository
+                    .findByParentTemplateIdAndPublishedTrueOrderByPositionAsc(template.getId())) {
+                children.add(toResponse(child, false));
+            }
+            root.setChildren(children);
+            response.add(root);
+        }
+        return response;
+    }
+
     public DocTemplateResponseDTO getById(Long id) {
 
         Optional<DocTemplateEntity> templateFound = docTemplateRepository.findById(id);

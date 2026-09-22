@@ -42,6 +42,9 @@ public class DocumentEntity {
     @Column(name = "cover_image_url", length = 1000)
     private String coverImageUrl;
 
+    @Column(name = "cover_image_public_id", length = 500)
+    private String coverImagePublicId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DocumentStatusEnum status = DocumentStatusEnum.DRAFT;

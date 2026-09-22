@@ -10,6 +10,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
@@ -31,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     /**
      * Repositorio de usuarios
@@ -144,6 +148,7 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setGroupName(request.getGroupName());
         user.setAvatarUrl(request.getAvatarUrl());
+        user.setAvatarPublicId(request.getAvatarPublicId());
 
         // ==============================
         // Rol
@@ -217,8 +222,19 @@ public class UserService {
             user.setDocumentNumber(request.getDocumentNumber());
         if (request.getGroupName() != null)
             user.setGroupName(request.getGroupName());
-        if (request.getAvatarUrl() != null)
+        if (request.getAvatarUrl() != null
+                && !java.util.Objects.equals(request.getAvatarUrl(), user.getAvatarUrl())) {
+            if (user.getAvatarPublicId() != null) {
+                try {
+                    cloudinary.uploader().destroy(user.getAvatarPublicId(),
+                            ObjectUtils.asMap("resource_type", "image"));
+                } catch (Exception exception) {
+                    log.warn("No se pudo eliminar el avatar {} de Cloudinary", user.getAvatarPublicId(), exception);
+                }
+            }
             user.setAvatarUrl(request.getAvatarUrl());
+            user.setAvatarPublicId(request.getAvatarPublicId());
+        }
 
         if (request.getStatus() != null) {
             UserStatusEnum newStatus = null;
@@ -446,8 +462,9 @@ public class UserService {
                         "resource_type", "image"));
 
         String url = (String) uploadResult.get("secure_url");
+        String publicId = String.valueOf(uploadResult.get("public_id"));
 
-        return new FileUploadResponseDTO(url);
+        return new FileUploadResponseDTO(url, publicId);
     }
 
     /**
@@ -484,8 +501,19 @@ public class UserService {
     if (update.getDocumentNumber() != null)
         usersEntity.setDocumentNumber(update.getDocumentNumber());
 
-    // avatarUrl siempre se aplica tal cual llega, incluyendo null para borrar la foto
-    usersEntity.setAvatarUrl(update.getAvatarUrl());
+    if (!java.util.Objects.equals(update.getAvatarUrl(), usersEntity.getAvatarUrl())) {
+        if (usersEntity.getAvatarPublicId() != null) {
+            try {
+                cloudinary.uploader().destroy(usersEntity.getAvatarPublicId(),
+                        ObjectUtils.asMap("resource_type", "image"));
+            } catch (Exception exception) {
+                log.warn("No se pudo eliminar el avatar {} de Cloudinary", usersEntity.getAvatarPublicId(), exception);
+            }
+        }
+
+        usersEntity.setAvatarPublicId(update.getAvatarPublicId());
+        usersEntity.setAvatarUrl(update.getAvatarUrl());
+    }
 
     usersRepository.save(usersEntity);
     message.setUserMessage("Actualización exitosa");
