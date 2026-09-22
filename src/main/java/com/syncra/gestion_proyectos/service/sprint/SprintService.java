@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 public class SprintService {
 
     private final SprintRepository sprintRepository;
+    private final SprintRealtimeService sprintRealtimeService;
 
     public SprintResponseDTO create(SprintRequestDTO request) {
 
@@ -33,6 +34,7 @@ public class SprintService {
         sprintEntity.setStatus(SprintStatusEnum.PLANNED);
 
         SprintEntity saved = sprintRepository.save(sprintEntity);
+        sprintRealtimeService.publishChanged(saved.getProjectId(), saved.getId(), "CREATED");
         return toResponseDTO(saved);
 
     }
@@ -67,12 +69,14 @@ public class SprintService {
         validateDates(entity.getStartDate(), entity.getEndDate());
 
         SprintEntity saved = sprintRepository.save(entity);
+        sprintRealtimeService.publishChanged(saved.getProjectId(), saved.getId(), "UPDATED");
         return toResponseDTO(saved);
     }
 
     public void delete(Long id) {
         SprintEntity entity = findEntityOrThrow(id);
         sprintRepository.delete(entity);
+        sprintRealtimeService.publishChanged(entity.getProjectId(), entity.getId(), "DELETED");
     }
 
     private SprintEntity findEntityOrThrow(Long id) {

@@ -30,6 +30,7 @@ public class KanbanColumnService {
 
     private final KanbanColumnRepository repository;
     private final ActivityLogService activityLogService;
+    private final KanbanColumnRealtimeService kanbanColumnRealtimeService;
 
     /**
      * Obtiene todas las columnas de un proyecto ordenadas por posicion
@@ -163,6 +164,7 @@ public class KanbanColumnService {
 
         message.setData(toResponse(entity));
         message.setMessage("columna creada exitosamente");
+        kanbanColumnRealtimeService.publishChanged(projectId, entity.getId(), "CREATED");
 
         return message;
     }
@@ -209,6 +211,7 @@ public class KanbanColumnService {
 
         response.setData(toResponse(entity));
         response.setMessage("Se actualizo la columna correctamente");
+        kanbanColumnRealtimeService.publishChanged(projectId, columnId, "UPDATED");
 
         return response;
     }
@@ -241,6 +244,7 @@ public class KanbanColumnService {
         }
 
         moveCompletedColumnToEnd(projectId);
+        kanbanColumnRealtimeService.publishChanged(projectId, null, "REORDERED");
     }
 
     /**
@@ -287,6 +291,7 @@ public class KanbanColumnService {
                 ActivityActionEnum.DELETED, "eliminó la columna \"" + nombre + "\"", userId);
 
         message.setMessage("Columna eliminada correctamente");
+    kanbanColumnRealtimeService.publishChanged(projectId, columnId, "DELETED");
         return message;
     }
 
