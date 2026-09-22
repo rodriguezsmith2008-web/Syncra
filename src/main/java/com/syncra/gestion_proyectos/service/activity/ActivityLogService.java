@@ -23,6 +23,7 @@ public class ActivityLogService {
 
     private final ActivityLogRepository repository;
     private final UsersRepository usersRepository;
+    private final ActivityLogRealtimeService activityLogRealtimeService;
 
     /**
      * Registra un evento de actividad (crear/editar/borrar) sobre un
@@ -46,7 +47,9 @@ public class ActivityLogService {
         entity.setDescription(description);
         entity.setUserId(userId);
 
-        repository.save(entity);
+        ActivityLogEntity saved = repository.save(entity);
+        ActivityLogResponseDTO response = toResponseDTO(saved, usersRepository.findById(userId).orElse(null));
+        activityLogRealtimeService.publishChanged(projectId, response);
     }
 
     /**
