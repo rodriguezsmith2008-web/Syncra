@@ -33,6 +33,23 @@ public class EmailService {
         }
     }
 
+    public void sendNotificationEmail(String toEmail, String type, String notificationMessage) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(toEmail);
+            helper.setSubject("Nueva notificacion de Syncra");
+            helper.setText("<p>" + notificationMessage + "</p>"
+                    + "<p>Ingresa a Syncra para ver mas detalles.</p>", true);
+
+            mailSender.send(message);
+            log.info("Correo de notificacion {} enviado a {}", type, toEmail);
+        } catch (Exception e) {
+            log.error("Error enviando correo de notificacion {} a {}: {}", type, toEmail, e.getMessage(), e);
+        }
+    }
+
     private String buildEmailBody(String firstName, String email, String tempPassword) {
         return """
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">

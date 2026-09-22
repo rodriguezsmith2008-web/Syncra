@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.dto.task;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import lombok.Data;
 
@@ -17,9 +18,11 @@ public class TaskResponseDTO {
     private String description;
     private String color;
     private LocalDate dueDate;
+    private LocalTime dueTime;
     private Long assignedTo;
     private Long createdBy;
     private Long position;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime completedAt;
 }

@@ -1,6 +1,7 @@
 package com.syncra.gestion_proyectos.service.notification;
 
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -13,17 +14,28 @@ import com.syncra.gestion_proyectos.entity.notification.NotificationEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.repository.notification.NotificationRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
+import com.syncra.gestion_proyectos.service.email.EmailService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationService {
+
+    private static final Set<String> EMAIL_NOTIFICATION_TYPES = Set.of(
+            "TASK_DUE_SOON",
+            "TASK_DUE_24H",
+            "TASK_DUE_3H",
+            "DOCUMENT_REJECTED",
+            "CHAT_PRIVATE");
 
     private final NotificationRepository repository;
     private final NotificationSocketService socketService;
     private final UsersRepository usersRepository;
+    private final EmailService emailService;
 
     public List<NotificationResponseDTO> getByUser(Long userId) {
 
@@ -156,6 +168,26 @@ public class NotificationService {
         }
 
         socketService.sendToUser(userId, dto);
+
+        sendEmailIfRequired(userId, type, message);
+    }
+
+    private void sendEmailIfRequired(Long userId, String type, String notificationMessage) {
+        if (!EMAIL_NOTIFICATION_TYPES.contains(type)) {
+            return;
+        }
+
+        try {
+            usersRepository.findById(userId)
+                    .filter(user -> user.getEmail() != null && !user.getEmail().isBlank())
+                    .ifPresent(user -> emailService.sendNotificationEmail(
+                            user.getEmail(),
+                            type,
+                            notificationMessage));
+        } catch (Exception e) {
+            log.error("No se pudo preparar el correo de notificacion {} para el usuario {}: {}",
+                    type, userId, e.getMessage(), e);
+        }
     }
 
     public long countUnread(Long userId) {

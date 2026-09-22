@@ -19,6 +19,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentCommentRequestDTO;
 import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
 import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
+import com.syncra.gestion_proyectos.service.project.ProjectService;
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
@@ -72,6 +73,7 @@ public class DocumentService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ActivityLogService activityLogService;
     private final SprintRepository sprintRepository;
+    private final ProjectService projectService;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -628,6 +630,11 @@ public class DocumentService {
 
         DocumentResponseDTO response = toResponse(saved, null);
         documentRealtimeService.publishUpdated(response);
+
+        if (dto.getStatus() == com.syncra.gestion_proyectos.enums.DocumentStatusEnum.APPROVED) {
+            projectService.moveToReviewIfAllDocumentsApproved(saved.getProjectId());
+        }
+
         return response;
     }
 

@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.service.project;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -30,6 +31,7 @@ import com.syncra.gestion_proyectos.repository.project.ProjectMemberRepository;
 import com.syncra.gestion_proyectos.repository.project.ProjectRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.kanban.KanbanColumnService;
+import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +48,7 @@ public class ProjectService {
     private final DocTemplateRepository docTemplateRepository;
     private final DocumentRepository documentRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final NotificationService notificationService;
     private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     public List<ProjectResponseDTO> getAll() {
@@ -232,6 +235,52 @@ public class ProjectService {
                 .collect(Collectors.toMap(UsersEntity::getId, u -> u));
 
         return toResponse(saved, creators);
+    }
+
+    @Transactional
+    public void moveToReviewIfAllDocumentsApproved(Long projectId) {
+        ProjectEntity project = findOrThrow(projectId);
+
+        if (project.getStatus() != ProjectStatusEnum.IN_PROGRESS) {
+            return;
+        }
+
+        Map<Long, long[]> progress = getDocumentProgress(List.of(project));
+        long[] documentCounts = progress.get(projectId);
+
+        if (documentCounts == null || documentCounts[0] == 0 || documentCounts[0] != documentCounts[1]) {
+            return;
+        }
+
+        project.setStatus(ProjectStatusEnum.IN_REVIEW);
+        projectRepository.save(project);
+
+        Long instructorId = resolveInstructorId(project);
+        if (instructorId != null) {
+            notificationService.crear(
+                    instructorId,
+                    null,
+                    projectId,
+                    null,
+                    null,
+                    null,
+                    "PROJECT_READY_FOR_REVIEW",
+                    "El proyecto \"" + project.getName() + "\" está listo para revisión");
+        }
+    }
+
+    private Long resolveInstructorId(ProjectEntity project) {
+        Optional<UsersEntity> creator = userRepository.findById(project.getCreatedBy());
+        if (creator.isPresent() && creator.get().getRole() == RoleUserEnum.INSTRUCTOR) {
+            return creator.get().getId();
+        }
+
+        return projectMemberRepository.findByIdProjectId(project.getId()).stream()
+                .map(member -> userRepository.findById(member.getId().getUserId()).orElse(null))
+                .filter(user -> user != null && user.getRole() == RoleUserEnum.INSTRUCTOR)
+                .map(UsersEntity::getId)
+                .findFirst()
+                .orElse(null);
     }
 
     private ProjectEntity findOrThrow(Long id) {

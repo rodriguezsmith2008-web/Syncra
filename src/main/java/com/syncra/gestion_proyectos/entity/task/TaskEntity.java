@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.entity.task;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -43,6 +44,9 @@ public class TaskEntity {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    @Column(name = "due_time")
+    private LocalTime dueTime;
+
     @Column(name = "assigned_to")
     private Long assignedTo;
 
@@ -57,6 +61,9 @@ public class TaskEntity {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
 
     @PrePersist
     public void prePersist() {
