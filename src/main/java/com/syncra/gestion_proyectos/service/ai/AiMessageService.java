@@ -1318,15 +1318,14 @@ public class AiMessageService {
 					: org.springframework.http.HttpStatus.BAD_GATEWAY;
 			throw new org.springframework.web.server.ResponseStatusException(status, aiMessage);
 		}
-		if (response.getReply() == null || response.getReply().isBlank()) {
+		boolean emittedTools = response.getToolCalls() != null && !response.getToolCalls().isEmpty();
+		if (!emittedTools && (response.getReply() == null || response.getReply().isBlank())) {
 			throw new org.springframework.web.server.ResponseStatusException(
 					org.springframework.http.HttpStatus.BAD_GATEWAY,
 					"El asistente devolvió una respuesta inválida");
 		}
 
 		long tokensAccumulated = extractTotalTokens(response.getUsage());
-
-		boolean emittedTools = response.getToolCalls() != null && !response.getToolCalls().isEmpty();
 		if (!trivial && !emittedTools && looksLikePlan(response.getReply())) {
 			log.info("Detectado plan sin ejecución. Reenviando nudge para forzar ejecución.");
 			AiServiceRequestDTO nudge = new AiServiceRequestDTO();
@@ -1361,6 +1360,7 @@ public class AiMessageService {
 
 		List<String> executedActions = new ArrayList<>();
 		int toolCallRounds = 0;
+		int planNudgeUsed = 0;
 
 		while (response.getToolCalls() != null && !response.getToolCalls().isEmpty() && toolCallRounds < 5) {
 			toolCallRounds++;
@@ -1412,8 +1412,40 @@ public class AiMessageService {
 					if (followUpResponse.getUsage() != null) {
 						response.setUsage(followUpResponse.getUsage());
 					}
-					if (followUpResponse.getToolCalls() == null || followUpResponse.getToolCalls().isEmpty())
+					if (followUpResponse.getToolCalls() == null || followUpResponse.getToolCalls().isEmpty()) {
+						if (planNudgeUsed < 1 && toolCallRounds < 5 && looksLikePlan(followUpResponse.getReply())) {
+							planNudgeUsed++;
+							log.info("Detectado plan sin ejecución en ronda de seguimiento. Reenviando nudge.");
+							AiServiceRequestDTO planNudge = new AiServiceRequestDTO();
+							planNudge.setMessage(
+									"REINTENTO OBLIGATORIO — tu respuesta anterior solo describió un plan sin ejecutarlo. " +
+									"EJECUTA AHORA las herramientas necesarias para completar esta petición: \"" + userText + "\". " +
+									"Está PROHIBIDO responder con texto sin ejecutar una herramienta. No expliques, no preguntes, no describas lo que harás. Llama la herramienta YA.");
+							planNudge.setHistory(followUp.getHistory());
+							planNudge.setContext(null);
+							planNudge.setModel(request.getModel());
+							planNudge.setTools(buildToolDefinitions());
+							try {
+								AiChatResponseDTO planNudgeResponse = callAiService(planNudge);
+								if (planNudgeResponse != null) {
+									tokensAccumulated += extractTotalTokens(planNudgeResponse.getUsage());
+									response.setReply(planNudgeResponse.getReply());
+									response.setSuggestedCard(planNudgeResponse.getSuggestedCard());
+									response.setActions(planNudgeResponse.getActions());
+									response.setToolCalls(planNudgeResponse.getToolCalls());
+									if (planNudgeResponse.getUsage() != null) {
+										response.setUsage(planNudgeResponse.getUsage());
+									}
+								}
+							} catch (Exception ex) {
+								log.warn("El nudge de plan en ronda de seguimiento falló: {}", ex.getMessage());
+							}
+							if (response.getToolCalls() != null && !response.getToolCalls().isEmpty()) {
+								continue;
+							}
+						}
 						break;
+					}
 				} else {
 					break;
 				}
@@ -1745,22 +1777,42 @@ public class AiMessageService {
 								resolvedTemplateLabel = byCode.get().getTitle() + " (" + byCode.get().getCode() + ")";
 							}
 						}
-						if (resolvedTemplateId == null && templateName != null && !templateName.isBlank()) {
-							String needle = normalizeForMatch(templateName);
-							var all = docTemplates.findAll();
-							for (var t : all) {
-								if (t.getTitle() != null && normalizeForMatch(t.getTitle()).equals(needle)) {
-									resolvedTemplateId = t.getId();
-									resolvedTemplateLabel = t.getTitle() + " (" + t.getCode() + ")";
-									break;
+						// El modelo a veces "inventa" un template_code plausible (ej. "PT-PP-03")
+						// tomado del prefijo del título, que no coincide con el código real en BD
+						// (los códigos de plantillas personalizadas son "CUSTOM-XXXXXXXX"). Si la
+						// búsqueda exacta por código falla, se reintenta con el mismo matching
+						// difuso por título usando tanto template_name como template_code.
+						if (resolvedTemplateId == null) {
+							java.util.List<String> needles = new ArrayList<>();
+							if (templateName != null && !templateName.isBlank())
+								needles.add(templateName);
+							if (templateCode != null && !templateCode.isBlank())
+								needles.add(templateCode);
+
+							if (!needles.isEmpty()) {
+								var all = docTemplates.findAll();
+								for (String rawNeedle : needles) {
+									String needle = normalizeForMatch(rawNeedle);
+									for (var t : all) {
+										if (t.getTitle() != null && normalizeForMatch(t.getTitle()).equals(needle)) {
+											resolvedTemplateId = t.getId();
+											resolvedTemplateLabel = t.getTitle() + " (" + t.getCode() + ")";
+											break;
+										}
+									}
+									if (resolvedTemplateId != null) break;
 								}
-							}
-							if (resolvedTemplateId == null) {
-								for (var t : all) {
-									if (t.getTitle() != null && normalizeForMatch(t.getTitle()).contains(needle)) {
-										resolvedTemplateId = t.getId();
-										resolvedTemplateLabel = t.getTitle() + " (" + t.getCode() + ")";
-										break;
+								if (resolvedTemplateId == null) {
+									for (String rawNeedle : needles) {
+										String needle = normalizeForMatch(rawNeedle);
+										for (var t : all) {
+											if (t.getTitle() != null && normalizeForMatch(t.getTitle()).contains(needle)) {
+												resolvedTemplateId = t.getId();
+												resolvedTemplateLabel = t.getTitle() + " (" + t.getCode() + ")";
+												break;
+											}
+										}
+										if (resolvedTemplateId != null) break;
 									}
 								}
 							}
@@ -1772,8 +1824,15 @@ public class AiMessageService {
 						var created = documentService.create(projectId, dto, userId);
 
 						if (args.get("content") != null && !String.valueOf(args.get("content")).isBlank()) {
+							String extraContent = String.valueOf(args.get("content"));
 							DocumentUpdateDTO update = new DocumentUpdateDTO();
-							update.setContent(String.valueOf(args.get("content")));
+							if (resolvedTemplateId != null && created.getContent() != null
+									&& !created.getContent().isBlank()) {
+								// Con plantilla: se conserva su estructura y el contenido pedido se agrega al final.
+								update.setContent(created.getContent() + "\n<p>" + extraContent + "</p>");
+							} else {
+								update.setContent(extraContent);
+							}
 							documentService.update(created.getId(), update, userId);
 						}
 
@@ -2011,7 +2070,7 @@ public class AiMessageService {
 								false))),
 				java.util.Map.of("type", "function", "function", java.util.Map.of(
 						"name", "create_document",
-						"description", "Crea un documento o acta real en la base de datos del proyecto. Si el usuario menciona una plantilla específica, pásala en template_name (o template_code si la conoces). Si es un acta de reunión, usa document_type=MEETING_MINUTES.",
+						"description", "Crea un documento o acta real en la base de datos del proyecto. Si el usuario menciona una plantilla específica, pásala en template_name con las palabras que usó el usuario (ej. 'plan de pruebas', 'especificación de casos de uso'); es más confiable que adivinar. Usa template_code solo si conoces el código EXACTO tal como está registrado en el sistema; no inventes códigos a partir del título. Si es un acta de reunión, usa document_type=MEETING_MINUTES.",
 						"parameters", java.util.Map.of("type", "object",
 								"properties", java.util.Map.of(
 										"project_id", java.util.Map.of("type", "integer"),
@@ -2230,11 +2289,13 @@ public class AiMessageService {
 		ProjectEntity project = projects.findById(projectId).orElse(null);
 		if (project == null)
 			return null;
+		List<TaskEntity> projectTasks = tasks.findByProjectIdOrderByColumnIdAscPositionAsc(projectId);
+
 		AiProjectContextDTO context = new AiProjectContextDTO();
 		context.setProjectId(project.getId());
 		context.setProjectName(project.getName());
 		context.setProjectStatus(project.getStatus() == null ? null : project.getStatus().name());
-		context.setPendingTasksSummary(tasks.findByProjectIdOrderByColumnIdAscPositionAsc(projectId).stream()
+		context.setPendingTasksSummary(projectTasks.stream()
 				.filter(task -> task.getDueDate() != null).limit(20)
 				.map(task -> task.getTitle() + " (vence " + task.getDueDate() + ")")
 				.collect(java.util.stream.Collectors.joining(", ")));
@@ -2242,7 +2303,7 @@ public class AiMessageService {
 				.map(column -> new com.syncra.gestion_proyectos.dto.ai.AiColumnContextDTO(
 						column.getId(), column.getName(), column.getPosition()))
 				.toList());
-		context.setTasks(tasks.findByProjectIdOrderByColumnIdAscPositionAsc(projectId).stream()
+		context.setTasks(projectTasks.stream()
 				.map(task -> new com.syncra.gestion_proyectos.dto.ai.AiTaskContextDTO(
 						task.getId(), task.getTitle(), limit(task.getDescription(), 300), task.getColumnId(),
 						task.getSprintId(), task.getDueDate(), task.getAssignedTo()))
@@ -2252,17 +2313,23 @@ public class AiMessageService {
 						sprint.getId(), sprint.getName(), sprint.getStartDate(), sprint.getEndDate(),
 						sprint.getStatus() == null ? null : sprint.getStatus().name()))
 				.toList());
-		context.setMembers(members.findByIdProjectId(projectId).stream().map(ProjectMemberEntity::getId)
-				.map(id -> users.findById(id.getUserId()).map(user -> new AiMemberContextDTO(
+		List<Long> memberUserIds = members.findByIdProjectId(projectId).stream()
+				.map(m -> m.getId().getUserId()).toList();
+		java.util.Map<Long, UsersEntity> memberUsersById = new java.util.HashMap<>();
+		users.findAllById(memberUserIds).forEach(user -> memberUsersById.put(user.getId(), user));
+		context.setMembers(memberUserIds.stream()
+				.map(memberUsersById::get)
+				.filter(java.util.Objects::nonNull)
+				.map(user -> new AiMemberContextDTO(
 						user.getId(), user.getFirstName() + " " + user.getLastName(),
-						user.getRole() == null ? null : user.getRole().name())).orElse(null))
-				.filter(java.util.Objects::nonNull).toList());
+						user.getRole() == null ? null : user.getRole().name()))
+				.toList());
 		context.setDocuments(documents.findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(projectId).stream()
 				.map(document -> new AiDocumentContextDTO(document.getId(), document.getTitle(),
 						document.getDocumentType() == null ? null : document.getDocumentType().name(),
 						document.getParentDocumentId(),
 						document.getStatus() == null ? null : document.getStatus().name(),
-						limit(document.getContent(), 1500), document.getMeetingType()))
+						limit(document.getContent(), 200), document.getMeetingType()))
 				.toList());
 		return context;
 	}

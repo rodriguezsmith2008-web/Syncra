@@ -511,6 +511,8 @@ public class DocumentService {
             newComment,
             usersRepository.findById(userId).orElse(null)));
 
+        documentRealtimeService.publishCommentAdded(document.getProjectId(), message.getComment());
+
         activityLogService.log(document.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, documentId,
                 ActivityActionEnum.UPDATED,
                 (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")

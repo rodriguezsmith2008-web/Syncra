@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.service.chat;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,6 +19,7 @@ import com.syncra.gestion_proyectos.dto.chat.ConversationResponseDTO;
 import com.syncra.gestion_proyectos.entity.chat.PrivateConversationEntity;
 import com.syncra.gestion_proyectos.entity.chat.PrivateMessageEntity;
 import com.syncra.gestion_proyectos.entity.chat.ProjectChatMessageEntity;
+import com.syncra.gestion_proyectos.enums.ChatMessageTypeEnum;
 import com.syncra.gestion_proyectos.repository.chat.PrivateConversationRepository;
 import com.syncra.gestion_proyectos.repository.chat.PrivateMessageRepository;
 import com.syncra.gestion_proyectos.repository.chat.ProjectChatMessageRepository;
@@ -61,17 +63,33 @@ public class ChatService {
     @Transactional
     public ChatMessageResponseDTO sendProjectMessage(
             Long projectId, Long userId, ChatMessageRequestDTO request) {
+        return persistProjectMessage(
+                projectId, userId, request.getContent().trim(), ChatMessageTypeEnum.TEXT);
+    }
+
+    @Transactional
+    public ChatMessageResponseDTO startProjectCall(Long projectId, Long userId) {
+        String roomName = "syncra-" + projectId + "-" + UUID.randomUUID();
+        return persistProjectMessage(projectId, userId, roomName, ChatMessageTypeEnum.CALL_INVITE);
+    }
+
+    private ChatMessageResponseDTO persistProjectMessage(
+            Long projectId, Long userId, String content, ChatMessageTypeEnum type) {
 
         validateMember(projectId, userId);
 
         ProjectChatMessageEntity entity = new ProjectChatMessageEntity();
         entity.setProjectId(projectId);
         entity.setUserId(userId);
-        entity.setContent(request.getContent().trim());
+        entity.setContent(content);
+        entity.setType(type);
 
         ProjectChatMessageEntity saved = projectChatMessageRepository.save(entity);
         publishChatEvent(projectId, null, "PROJECT_MESSAGE");
-        notifyProjectMembers(projectId, userId, "CHAT_PROJECT", "Nuevo mensaje en el chat del proyecto");
+        notifyProjectMembers(projectId, userId, "CHAT_PROJECT",
+                type == ChatMessageTypeEnum.CALL_INVITE
+                        ? "Se inició una videollamada en el chat del proyecto"
+                        : "Nuevo mensaje en el chat del proyecto");
         return toResponse(saved);
     }
 
@@ -163,6 +181,18 @@ public class ChatService {
     @Transactional
     public ChatMessageResponseDTO sendPrivateMessage(
             Long projectId, Long userId, Long conversationId, ChatMessageRequestDTO request) {
+        return persistPrivateMessage(
+                projectId, userId, conversationId, request.getContent().trim(), ChatMessageTypeEnum.TEXT);
+    }
+
+    @Transactional
+    public ChatMessageResponseDTO startPrivateCall(Long projectId, Long userId, Long conversationId) {
+        String roomName = "syncra-conv-" + conversationId + "-" + UUID.randomUUID();
+        return persistPrivateMessage(projectId, userId, conversationId, roomName, ChatMessageTypeEnum.CALL_INVITE);
+    }
+
+    private ChatMessageResponseDTO persistPrivateMessage(
+            Long projectId, Long userId, Long conversationId, String content, ChatMessageTypeEnum type) {
 
         validateMember(projectId, userId);
         PrivateConversationEntity conversation = getConversation(projectId, conversationId);
@@ -171,7 +201,8 @@ public class ChatService {
         PrivateMessageEntity entity = new PrivateMessageEntity();
         entity.setConversationId(conversationId);
         entity.setSenderId(userId);
-        entity.setContent(request.getContent().trim());
+        entity.setContent(content);
+        entity.setType(type);
         entity.setRead(false);
 
         PrivateMessageEntity saved = privateMessageRepository.save(entity);
@@ -179,7 +210,8 @@ public class ChatService {
             ? conversation.getUserTwoId()
             : conversation.getUserOneId();
         notificationService.crear(recipientId, userId, projectId, null, null, null,
-            "CHAT_PRIVATE", "Nuevo mensaje privado");
+            "CHAT_PRIVATE",
+            type == ChatMessageTypeEnum.CALL_INVITE ? "Te está llamando" : "Nuevo mensaje privado");
         publishChatEvent(projectId, conversationId, "PRIVATE_MESSAGE");
         return toResponse(saved);
     }
@@ -297,6 +329,7 @@ public class ChatService {
         response.setUserId(entity.getUserId());
         setSenderData(response, user);
         response.setContent(entity.getContent());
+        response.setType(entity.getType().name());
         response.setCreatedAt(entity.getCreatedAt());
         return response;
     }
@@ -321,6 +354,7 @@ public class ChatService {
         setSenderData(response, user);
         response.setContent(entity.getContent());
         response.setIsRead(entity.getRead());
+        response.setType(entity.getType().name());
         response.setCreatedAt(entity.getCreatedAt());
         return response;
     }
