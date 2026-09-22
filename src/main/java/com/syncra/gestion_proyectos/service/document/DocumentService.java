@@ -310,7 +310,9 @@ public class DocumentService {
 
         if (dto.getContent() != null && !dto.getContent().equals(previousContent)) {
             documentToUpdate.setContent(dto.getContent());
-            appendChange(changes, describirCambioContenido(previousContent, dto.getContent()));
+            ContentChange contentChange = describirCambioContenido(previousContent, dto.getContent());
+            if (!contentChange.description().isEmpty())
+                appendChange(changes, contentChange.description());
         }
 
         if (dto.isCoverImageUrlProvided()
@@ -321,16 +323,40 @@ public class DocumentService {
                     : "actualizó la imagen de portada");
         }
 
-        if (dto.isSprintIdProvided()) {
+        if (dto.isSprintIdProvided()
+            && !java.util.Objects.equals(dto.getSprintId(), documentToUpdate.getSprintId())) {
+            Long previousSprintId = documentToUpdate.getSprintId();
             documentToUpdate.setSprintId(dto.getSprintId());
+            appendChange(changes, previousSprintId == null
+                ? "asignó el sprint \"" + dto.getSprintId() + "\""
+                : dto.getSprintId() == null
+                    ? "eliminó el sprint \"" + previousSprintId + "\""
+                    : "cambió el sprint de \"" + previousSprintId + "\" a \""
+                        + dto.getSprintId() + "\"");
         }
 
-        if (dto.isQuarterProvided()) {
+        if (dto.isQuarterProvided()
+            && !java.util.Objects.equals(dto.getQuarter(), documentToUpdate.getQuarter())) {
+            Integer previousQuarter = documentToUpdate.getQuarter();
             documentToUpdate.setQuarter(dto.getQuarter());
+            appendChange(changes, previousQuarter == null
+                ? "asignó el quarter \"" + dto.getQuarter() + "\""
+                : dto.getQuarter() == null
+                    ? "eliminó el quarter \"" + previousQuarter + "\""
+                    : "cambió el quarter de \"" + previousQuarter + "\" a \""
+                        + dto.getQuarter() + "\"");
         }
 
-        if (dto.isMeetingTypeProvided()) {
+        if (dto.isMeetingTypeProvided()
+            && !java.util.Objects.equals(dto.getMeetingType(), documentToUpdate.getMeetingType())) {
+            String previousMeetingType = documentToUpdate.getMeetingType();
             documentToUpdate.setMeetingType(dto.getMeetingType());
+            appendChange(changes, previousMeetingType == null
+                ? "asignó el tipo de reunión \"" + dto.getMeetingType() + "\""
+                : dto.getMeetingType() == null
+                    ? "eliminó el tipo de reunión \"" + previousMeetingType + "\""
+                    : "cambió el tipo de reunión de \"" + previousMeetingType + "\" a \""
+                        + dto.getMeetingType() + "\"");
         }
 
         documentToUpdate.setUpdatedBy(updatedBy);
@@ -339,10 +365,15 @@ public class DocumentService {
 
         documentRealtimeService.publishUpdated(toResponse(documentToUpdate, null));
 
-        String description = changes.length() == 0 ? "actualizó los datos del documento" : changes.toString();
-        activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
-                documentToUpdate.getId(), ActivityActionEnum.UPDATED,
-                description, updatedBy);
+        if (changes.length() > 0) {
+            String description = changes.toString();
+            if (description.length() > 300) {
+                description = description.substring(0, 297) + "...";
+            }
+            activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                    documentToUpdate.getId(), ActivityActionEnum.UPDATED,
+                    description, updatedBy);
+        }
 
         message.setMessage("Documento actualizado correctamente.");
         return message;
@@ -638,7 +669,7 @@ public class DocumentService {
         changes.append(change);
     }
 
-    private String describirCambioContenido(String previousContent, String currentContent) {
+    private ContentChange describirCambioContenido(String previousContent, String currentContent) {
         String previous = previousContent == null ? "" : previousContent;
         String current = currentContent == null ? "" : currentContent;
         int previousImages = countOccurrences(previous, "<img");
@@ -687,11 +718,104 @@ public class DocumentService {
                 "resaltado(s) de texto");
         registrarDiferencia(changes, previous, current, "color:", "color(es) de texto", "color(es) de texto");
 
-        String previousText = extraerTexto(previous);
-        String currentText = extraerTexto(current);
-        if (!previousText.equals(currentText))
-            changes.add("modificó el texto y formato del contenido");
-        return changes.isEmpty() ? "modificó el contenido del documento" : String.join(", ", changes);
+        agregarCambiosDeTablas(changes, previous, current);
+        String previousText = extraerTextoSinTablas(previous);
+        String currentText = extraerTextoSinTablas(current);
+        agregarDiffDePalabras(changes, previousText, currentText);
+        return new ContentChange(changes.isEmpty() ? "" : String.join(", ", changes));
+    }
+
+    private String extraerTextoSinTablas(String html) {
+        Document parsed = Jsoup.parse(html);
+        parsed.select("table").remove();
+        return extraerTexto(parsed.body().html());
+    }
+
+    private void agregarCambiosDeTablas(List<String> changes, String previous, String current) {
+        List<String> previousCells = extraerCeldasDeTabla(previous);
+        List<String> currentCells = extraerCeldasDeTabla(current);
+        int commonCells = Math.min(previousCells.size(), currentCells.size());
+        for (int index = 0; index < commonCells; index++) {
+            String before = previousCells.get(index);
+            String after = currentCells.get(index);
+            if (!before.equals(after)) {
+                changes.add("cambió el contenido de una celda de tabla de \""
+                        + fragmentoCorto(before) + "\" a \"" + fragmentoCorto(after) + "\"");
+            }
+        }
+    }
+
+    private List<String> extraerCeldasDeTabla(String html) {
+        List<String> cells = new ArrayList<>();
+        for (Element table : Jsoup.parse(html).select("table")) {
+            for (Element cell : table.select("th, td")) {
+                cells.add(extraerTexto(cell.html()));
+            }
+        }
+        return cells;
+    }
+
+    private void agregarDiffDePalabras(List<String> changes, String previous, String current) {
+        String[] before = previous.isEmpty() ? new String[0] : previous.split("\\s+");
+        String[] after = current.isEmpty() ? new String[0] : current.split("\\s+");
+        int[][] lcs = new int[before.length + 1][after.length + 1];
+        for (int i = before.length - 1; i >= 0; i--) {
+            for (int j = after.length - 1; j >= 0; j--) {
+                lcs[i][j] = before[i].equals(after[j]) ? lcs[i + 1][j + 1] + 1
+                        : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+            }
+        }
+
+        List<WordDiff> diffs = new ArrayList<>();
+        int i = 0;
+        int j = 0;
+        while (i < before.length || j < after.length) {
+            if (i < before.length && j < after.length && before[i].equals(after[j])) {
+                diffs.add(new WordDiff('=', before[i++]));
+                j++;
+            } else if (i < before.length && (j == after.length || lcs[i + 1][j] >= lcs[i][j + 1])) {
+                diffs.add(new WordDiff('-', before[i++]));
+            } else {
+                diffs.add(new WordDiff('+', after[j++]));
+            }
+        }
+
+        int index = 0;
+        while (index < diffs.size()) {
+            if (diffs.get(index).type() == '=') {
+                index++;
+                continue;
+            }
+            List<String> removed = new ArrayList<>();
+            List<String> added = new ArrayList<>();
+            while (index < diffs.size() && diffs.get(index).type() != '=') {
+                WordDiff diff = diffs.get(index++);
+                if (diff.type() == '-')
+                    removed.add(diff.word());
+                else
+                    added.add(diff.word());
+            }
+            String beforeText = fragmentoCorto(String.join(" ", removed));
+            String afterText = fragmentoCorto(String.join(" ", added));
+            if (!removed.isEmpty() && !added.isEmpty()) {
+                changes.add("cambió \"" + beforeText + "\" por \"" + afterText + "\"");
+            } else if (!removed.isEmpty()) {
+                changes.add("eliminó \"" + beforeText + "\"");
+            } else {
+                changes.add("agregó \"" + afterText + "\"");
+            }
+        }
+    }
+
+    private String fragmentoCorto(String text) {
+        String normalized = text.replace('"', '\'').replaceAll("\\s+", " ").trim();
+        return normalized.length() > 60 ? normalized.substring(0, 57) + "..." : normalized;
+    }
+
+    private record ContentChange(String description) {
+    }
+
+    private record WordDiff(char type, String word) {
     }
 
     private String extraerTexto(String html) {
