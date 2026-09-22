@@ -3,6 +3,7 @@ package com.syncra.gestion_proyectos.service.task;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.time.LocalDateTime;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.task.TaskRepository;
+import com.syncra.gestion_proyectos.repository.kanban.KanbanColumnRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
@@ -25,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class TaskService {
 
     private final TaskRepository repository;
+    private final KanbanColumnRepository kanbanColumnRepository;
     private final TaskHistoryService taskHistoryService;
     private final NotificationService notificationService;
     private final UsersRepository usersRepository;
@@ -138,6 +141,7 @@ public class TaskService {
         entity.setDescription(dto.getDescription());
         entity.setColor(dto.getColor());
         entity.setDueDate(dto.getDueDate());
+        entity.setDueTime(dto.getDueTime());
         entity.setAssignedTo(dto.getAssignedTo());
         entity.setCreatedBy(createdBy);
 
@@ -190,6 +194,7 @@ public class TaskService {
             entity.setColor(dto.getColor());
 
         entity.setDueDate(dto.getDueDate());
+        entity.setDueTime(dto.getDueTime());
 
         if (dto.getSprintId() != null)
             entity.setSprintId(dto.getSprintId());
@@ -254,6 +259,15 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
     Long columnaDestino = dto.getColumnId();
     Long posicionDestino = dto.getPosition();
 
+        boolean columnaAnteriorFinal = Boolean.TRUE.equals(
+            kanbanColumnRepository.findById(columnaAnterior)
+                .map(columna -> columna.getIsFinal())
+                .orElse(false));
+        boolean columnaDestinoFinal = Boolean.TRUE.equals(
+            kanbanColumnRepository.findById(columnaDestino)
+                .map(columna -> columna.getIsFinal())
+                .orElse(false));
+
     boolean cambioDeColumna = !columnaAnterior.equals(columnaDestino);
     boolean huboMovimiento = cambioDeColumna || !posicionAnterior.equals(posicionDestino);
 
@@ -296,6 +310,11 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
     entity.setColumnId(columnaDestino);
     entity.setPosition(posicionDestino);
+    if (columnaDestinoFinal) {
+        entity.setCompletedAt(entity.getCompletedAt() == null ? LocalDateTime.now() : entity.getCompletedAt());
+    } else if (columnaAnteriorFinal) {
+        entity.setCompletedAt(null);
+    }
     repository.save(entity);
 
     if (huboMovimiento) {
@@ -382,11 +401,13 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
         dto.setDescription(entity.getDescription());
         dto.setColor(entity.getColor());
         dto.setDueDate(entity.getDueDate());
+        dto.setDueTime(entity.getDueTime());
         dto.setAssignedTo(entity.getAssignedTo());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setPosition(entity.getPosition());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setCompletedAt(entity.getCompletedAt());
 
         return dto;
     }
