@@ -54,9 +54,11 @@ public class ChatService {
             messages.stream().map(ProjectChatMessageEntity::getUserId).distinct().toList())
             .stream().collect(Collectors.toMap(
                 com.syncra.gestion_proyectos.entity.user.UsersEntity::getId, Function.identity()));
+        Map<Long, ProjectChatMessageEntity> messagesById = messages.stream()
+            .collect(Collectors.toMap(ProjectChatMessageEntity::getId, Function.identity()));
         return messages
                 .stream()
-            .map(message -> toResponse(message, usersById))
+            .map(message -> toResponse(message, usersById, messagesById))
                 .toList();
     }
 
@@ -64,17 +66,18 @@ public class ChatService {
     public ChatMessageResponseDTO sendProjectMessage(
             Long projectId, Long userId, ChatMessageRequestDTO request) {
         return persistProjectMessage(
-                projectId, userId, request.getContent().trim(), ChatMessageTypeEnum.TEXT);
+                projectId, userId, request.getContent().trim(), ChatMessageTypeEnum.TEXT,
+                request.getReplyToMessageId());
     }
 
     @Transactional
     public ChatMessageResponseDTO startProjectCall(Long projectId, Long userId) {
         String roomName = "syncra-" + projectId + "-" + UUID.randomUUID();
-        return persistProjectMessage(projectId, userId, roomName, ChatMessageTypeEnum.CALL_INVITE);
+        return persistProjectMessage(projectId, userId, roomName, ChatMessageTypeEnum.CALL_INVITE, null);
     }
 
     private ChatMessageResponseDTO persistProjectMessage(
-            Long projectId, Long userId, String content, ChatMessageTypeEnum type) {
+            Long projectId, Long userId, String content, ChatMessageTypeEnum type, Long replyToMessageId) {
 
         validateMember(projectId, userId);
 
@@ -83,6 +86,7 @@ public class ChatService {
         entity.setUserId(userId);
         entity.setContent(content);
         entity.setType(type);
+        entity.setReplyToMessageId(resolveProjectReplyTarget(projectId, replyToMessageId));
 
         ProjectChatMessageEntity saved = projectChatMessageRepository.save(entity);
         publishChatEvent(projectId, null, "PROJECT_MESSAGE");
@@ -172,9 +176,11 @@ public class ChatService {
             messages.stream().map(PrivateMessageEntity::getSenderId).distinct().toList())
             .stream().collect(Collectors.toMap(
                 com.syncra.gestion_proyectos.entity.user.UsersEntity::getId, Function.identity()));
+        Map<Long, PrivateMessageEntity> messagesById = messages.stream()
+            .collect(Collectors.toMap(PrivateMessageEntity::getId, Function.identity()));
         return messages
                 .stream()
-            .map(message -> toResponse(message, usersById))
+            .map(message -> toResponse(message, usersById, messagesById))
                 .toList();
     }
 
@@ -182,17 +188,20 @@ public class ChatService {
     public ChatMessageResponseDTO sendPrivateMessage(
             Long projectId, Long userId, Long conversationId, ChatMessageRequestDTO request) {
         return persistPrivateMessage(
-                projectId, userId, conversationId, request.getContent().trim(), ChatMessageTypeEnum.TEXT);
+                projectId, userId, conversationId, request.getContent().trim(), ChatMessageTypeEnum.TEXT,
+                request.getReplyToMessageId());
     }
 
     @Transactional
     public ChatMessageResponseDTO startPrivateCall(Long projectId, Long userId, Long conversationId) {
         String roomName = "syncra-conv-" + conversationId + "-" + UUID.randomUUID();
-        return persistPrivateMessage(projectId, userId, conversationId, roomName, ChatMessageTypeEnum.CALL_INVITE);
+        return persistPrivateMessage(
+                projectId, userId, conversationId, roomName, ChatMessageTypeEnum.CALL_INVITE, null);
     }
 
     private ChatMessageResponseDTO persistPrivateMessage(
-            Long projectId, Long userId, Long conversationId, String content, ChatMessageTypeEnum type) {
+            Long projectId, Long userId, Long conversationId, String content, ChatMessageTypeEnum type,
+            Long replyToMessageId) {
 
         validateMember(projectId, userId);
         PrivateConversationEntity conversation = getConversation(projectId, conversationId);
@@ -204,6 +213,7 @@ public class ChatService {
         entity.setContent(content);
         entity.setType(type);
         entity.setRead(false);
+        entity.setReplyToMessageId(resolvePrivateReplyTarget(conversationId, replyToMessageId));
 
         PrivateMessageEntity saved = privateMessageRepository.save(entity);
         Long recipientId = userId.equals(conversation.getUserOneId())
@@ -268,6 +278,30 @@ public class ChatService {
         privateMessageRepository.saveAll(messages);
     }
 
+    private Long resolveProjectReplyTarget(Long projectId, Long replyToMessageId) {
+        if (replyToMessageId == null) {
+            return null;
+        }
+        ProjectChatMessageEntity target = projectChatMessageRepository.findById(replyToMessageId)
+                .orElseThrow(() -> new EntityNotFoundException("Mensaje a responder no encontrado"));
+        if (!projectId.equals(target.getProjectId())) {
+            throw new EntityNotFoundException("Mensaje a responder no encontrado");
+        }
+        return target.getId();
+    }
+
+    private Long resolvePrivateReplyTarget(Long conversationId, Long replyToMessageId) {
+        if (replyToMessageId == null) {
+            return null;
+        }
+        PrivateMessageEntity target = privateMessageRepository.findById(replyToMessageId)
+                .orElseThrow(() -> new EntityNotFoundException("Mensaje a responder no encontrado"));
+        if (!conversationId.equals(target.getConversationId())) {
+            throw new EntityNotFoundException("Mensaje a responder no encontrado");
+        }
+        return target.getId();
+    }
+
     private PrivateConversationEntity getConversation(Long projectId, Long conversationId) {
         return privateConversationRepository.findByIdAndProjectId(conversationId, projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Conversación no encontrada"));
@@ -311,13 +345,28 @@ public class ChatService {
     }
 
     private ChatMessageResponseDTO toResponse(ProjectChatMessageEntity entity) {
-        return toResponse(entity, usersRepository.findById(entity.getUserId()).orElse(null));
+        ChatMessageResponseDTO response = toResponse(
+                entity, usersRepository.findById(entity.getUserId()).orElse(null));
+        if (entity.getReplyToMessageId() != null) {
+            projectChatMessageRepository.findById(entity.getReplyToMessageId())
+                    .ifPresent(replied -> applyProjectReplyPreview(response, replied,
+                            usersRepository.findById(replied.getUserId()).orElse(null)));
+        }
+        return response;
         }
 
         private ChatMessageResponseDTO toResponse(
             ProjectChatMessageEntity entity,
-            Map<Long, com.syncra.gestion_proyectos.entity.user.UsersEntity> usersById) {
-            return toResponse(entity, usersById.get(entity.getUserId()));
+            Map<Long, com.syncra.gestion_proyectos.entity.user.UsersEntity> usersById,
+            Map<Long, ProjectChatMessageEntity> messagesById) {
+            ChatMessageResponseDTO response = toResponse(entity, usersById.get(entity.getUserId()));
+            ProjectChatMessageEntity replied = entity.getReplyToMessageId() != null
+                    ? messagesById.get(entity.getReplyToMessageId())
+                    : null;
+            if (replied != null) {
+                applyProjectReplyPreview(response, replied, usersById.get(replied.getUserId()));
+            }
+            return response;
             }
 
             private ChatMessageResponseDTO toResponse(
@@ -334,14 +383,42 @@ public class ChatService {
         return response;
     }
 
+    private void applyProjectReplyPreview(
+            ChatMessageResponseDTO response,
+            ProjectChatMessageEntity replied,
+            com.syncra.gestion_proyectos.entity.user.UsersEntity sender) {
+        response.setReplyToMessageId(replied.getId());
+        response.setReplyToSenderId(replied.getUserId());
+        if (sender != null) {
+            response.setReplyToSenderName(sender.getFirstName() + " " + sender.getLastName());
+        }
+        response.setReplyToContent(replied.getContent());
+        response.setReplyToType(replied.getType().name());
+    }
+
     private ChatMessageResponseDTO toResponse(PrivateMessageEntity entity) {
-        return toResponse(entity, usersRepository.findById(entity.getSenderId()).orElse(null));
+        ChatMessageResponseDTO response = toResponse(
+                entity, usersRepository.findById(entity.getSenderId()).orElse(null));
+        if (entity.getReplyToMessageId() != null) {
+            privateMessageRepository.findById(entity.getReplyToMessageId())
+                    .ifPresent(replied -> applyPrivateReplyPreview(response, replied,
+                            usersRepository.findById(replied.getSenderId()).orElse(null)));
+        }
+        return response;
         }
 
         private ChatMessageResponseDTO toResponse(
             PrivateMessageEntity entity,
-            Map<Long, com.syncra.gestion_proyectos.entity.user.UsersEntity> usersById) {
-            return toResponse(entity, usersById.get(entity.getSenderId()));
+            Map<Long, com.syncra.gestion_proyectos.entity.user.UsersEntity> usersById,
+            Map<Long, PrivateMessageEntity> messagesById) {
+            ChatMessageResponseDTO response = toResponse(entity, usersById.get(entity.getSenderId()));
+            PrivateMessageEntity replied = entity.getReplyToMessageId() != null
+                    ? messagesById.get(entity.getReplyToMessageId())
+                    : null;
+            if (replied != null) {
+                applyPrivateReplyPreview(response, replied, usersById.get(replied.getSenderId()));
+            }
+            return response;
             }
 
             private ChatMessageResponseDTO toResponse(
@@ -357,6 +434,19 @@ public class ChatService {
         response.setType(entity.getType().name());
         response.setCreatedAt(entity.getCreatedAt());
         return response;
+    }
+
+    private void applyPrivateReplyPreview(
+            ChatMessageResponseDTO response,
+            PrivateMessageEntity replied,
+            com.syncra.gestion_proyectos.entity.user.UsersEntity sender) {
+        response.setReplyToMessageId(replied.getId());
+        response.setReplyToSenderId(replied.getSenderId());
+        if (sender != null) {
+            response.setReplyToSenderName(sender.getFirstName() + " " + sender.getLastName());
+        }
+        response.setReplyToContent(replied.getContent());
+        response.setReplyToType(replied.getType().name());
     }
 
     private void setSenderData(ChatMessageResponseDTO response,

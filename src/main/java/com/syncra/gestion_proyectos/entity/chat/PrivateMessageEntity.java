@@ -40,6 +40,9 @@ public class PrivateMessageEntity {
     @Column(name = "is_read", nullable = false)
     private Boolean read = false;
 
+    @Column(name = "reply_to_message_id")
+    private Long replyToMessageId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

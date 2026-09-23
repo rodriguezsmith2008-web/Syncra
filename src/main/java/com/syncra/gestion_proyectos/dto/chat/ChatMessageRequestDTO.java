@@ -8,4 +8,6 @@ public class ChatMessageRequestDTO {
 
     @NotBlank
     private String content;
+
+    private Long replyToMessageId;
 }

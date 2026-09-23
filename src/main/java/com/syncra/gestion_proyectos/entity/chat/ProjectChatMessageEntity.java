@@ -37,6 +37,9 @@ public class ProjectChatMessageEntity {
     @Column(name = "type", nullable = false)
     private ChatMessageTypeEnum type = ChatMessageTypeEnum.TEXT;
 
+    @Column(name = "reply_to_message_id")
+    private Long replyToMessageId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
