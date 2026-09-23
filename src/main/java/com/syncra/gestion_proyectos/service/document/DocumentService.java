@@ -599,8 +599,10 @@ public class DocumentService {
         response.setQuarter(documentEntity.getQuarter());
         response.setMeetingType(documentEntity.getMeetingType());
 
-        if (documentEntity.getSprintId() != null && sprintsById != null) {
-            SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
+        if (documentEntity.getSprintId() != null) {
+            SprintEntity sprint = sprintsById != null
+                    ? sprintsById.get(documentEntity.getSprintId())
+                    : sprintRepository.findById(documentEntity.getSprintId()).orElse(null);
 
             if (sprint != null) {
                 response.setSprintName(sprint.getName());
@@ -996,10 +998,11 @@ public class DocumentService {
                         h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 16px; }
                         h1, h2, h3, h4 { page-break-after: avoid; }
                         img { max-width: 100%%; height: auto; }
-                        table { border-collapse: collapse; width: 100%%; margin: 8px 0; -fs-table-paginate: paginate; }
+                        table { border-collapse: collapse; table-layout: fixed; width: 100%%; margin: 8px 0; -fs-table-paginate: paginate; }
                         thead { display: table-header-group; }
                         tr { page-break-inside: avoid; }
-                        td, th { border: 1px solid #ccc; padding: 6px; word-wrap: break-word; }
+                        td, th { border: 1px solid #ccc; padding: 6px; height: 24px; word-wrap: break-word; overflow-wrap: break-word; vertical-align: top; }
+                        td p, th p { margin: 0; }
                         blockquote { border-left: 3px solid #94a3b8; margin: 10px 0; padding: 4px 12px; color: #475569; page-break-inside: avoid; }
                         pre { white-space: pre-wrap; font-family: monospace; background: #f3f4f6; padding: 8px; page-break-inside: avoid; }
                         a { color: #1d4ed8; text-decoration: underline; }
@@ -1082,10 +1085,12 @@ public class DocumentService {
 
         Safelist safelist = Safelist.none()
                 .addTags("p", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "h4",
-                        "blockquote", "ul", "ol", "li", "pre", "code", "table", "thead", "tbody", "tfoot",
-                        "tr", "th", "td", "a", "img", "hr", "span")
+                    "blockquote", "ul", "ol", "li", "pre", "code", "table", "colgroup", "col", "thead",
+                    "tbody", "tfoot", "tr", "th", "td", "a", "img", "hr", "span")
                 .addAttributes("a", "href", "title")
                 .addAttributes("img", "src", "alt", "width", "height")
+                .addAttributes("colgroup", "span", "width")
+                .addAttributes("col", "span", "width")
                 .addAttributes("td", "colspan", "rowspan")
                 .addAttributes("th", "colspan", "rowspan")
                 .addAttributes(":all", "style")
@@ -1112,6 +1117,7 @@ public class DocumentService {
                 }
             }
         }
+        normalizarTablasParaPdf(parsed);
         parsed.outputSettings().syntax(Document.OutputSettings.Syntax.xml)
                 .escapeMode(Entities.EscapeMode.xhtml)
                 .charset(java.nio.charset.StandardCharsets.UTF_8)
@@ -1119,9 +1125,178 @@ public class DocumentService {
         return parsed.body().html();
     }
 
+    private void normalizarTablasParaPdf(Document parsed) {
+        for (Element table : parsed.select("table")) {
+            Element firstRow = primeraFilaDeTabla(table);
+            if (firstRow == null) {
+                continue;
+            }
+
+            for (Element cell : table.select("td, th")) {
+                if (cell.text().trim().isEmpty() && cell.select("img").isEmpty()) {
+                    cell.append("&nbsp;");
+                }
+                cell.attr("style", agregarPropiedadCss(cell.attr("style"), "height", "24px"));
+            }
+
+            Element colgroup = table.select("> colgroup").first();
+            List<Element> columns = colgroup == null
+                    ? List.of()
+                    : colgroup.select("> col");
+
+            if (tieneAnchosDeColumna(columns)) {
+                aplicarAnchosDeColgroup(columns);
+            } else {
+                int columnCount = contarColumnas(firstRow);
+                if (columnCount > 0) {
+                    double widthPerColumn = 100d / columnCount;
+                    for (Element cell : firstRow.select("> th, > td")) {
+                        int colspan = parsePositiveInt(cell.attr("colspan"), 1);
+                        cell.attr("style", agregarPropiedadCss(
+                                cell.attr("style"),
+                                "width",
+                                String.format(java.util.Locale.ROOT, "%.4f%%", widthPerColumn * colspan)));
+                    }
+                }
+            }
+        }
+    }
+
+    private Element primeraFilaDeTabla(Element table) {
+        for (Element child : table.children()) {
+            if (child.is("tr")) {
+                return child;
+            }
+            if (child.is("thead, tbody, tfoot")) {
+                Element row = child.select("> tr").first();
+                if (row != null) {
+                    return row;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int contarColumnas(Element row) {
+        int count = 0;
+        for (Element cell : row.select("> th, > td")) {
+            count += parsePositiveInt(cell.attr("colspan"), 1);
+        }
+        return count;
+    }
+
+    private boolean tieneAnchosDeColumna(List<Element> columns) {
+        return columns.stream().anyMatch(column -> {
+            String width = column.attr("width");
+            return !width.isBlank() || !extraerPropiedadCss(column.attr("style"), "width").isBlank();
+        });
+    }
+
+    private void aplicarAnchosDeColgroup(List<Element> columns) {
+        List<Double> widths = new ArrayList<>();
+        int unspecified = 0;
+        double specifiedTotal = 0;
+        boolean containsPixelWidth = false;
+
+        for (Element column : columns) {
+            String rawWidth = !column.attr("width").isBlank()
+                    ? column.attr("width")
+                    : extraerPropiedadCss(column.attr("style"), "width");
+            Double width = parseWidth(rawWidth);
+            widths.add(width);
+            containsPixelWidth |= rawWidth.trim().toLowerCase(java.util.Locale.ROOT).endsWith("px");
+            if (width == null) {
+                unspecified++;
+            } else {
+                specifiedTotal += width;
+            }
+        }
+
+        if (specifiedTotal <= 0 || (!containsPixelWidth && specifiedTotal > 100)) {
+            return;
+        }
+
+        double remaining = containsPixelWidth
+                ? 0
+                : Math.max(0, 100 - specifiedTotal);
+        double fallbackWidth = unspecified == 0 ? 0 : remaining / unspecified;
+        for (int index = 0; index < columns.size(); index++) {
+            double width = widths.get(index) == null
+                    ? fallbackWidth
+                    : containsPixelWidth
+                        ? widths.get(index) / specifiedTotal * 100
+                        : widths.get(index);
+            columns.get(index).attr("style", agregarPropiedadCss(
+                    columns.get(index).attr("style"),
+                    "width",
+                    String.format(java.util.Locale.ROOT, "%.4f%%", width)));
+        }
+    }
+
+    private Double parseWidth(String rawWidth) {
+        if (rawWidth == null || rawWidth.isBlank()) {
+            return null;
+        }
+
+        String normalized = rawWidth.trim().toLowerCase(java.util.Locale.ROOT);
+        try {
+            if (normalized.endsWith("%")) {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 1));
+            }
+            if (normalized.endsWith("px")) {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 2));
+            }
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private int parsePositiveInt(String value, int fallback) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed > 0 ? parsed : fallback;
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private String extraerPropiedadCss(String style, String property) {
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length == 2 && parts[0].trim().equalsIgnoreCase(property)) {
+                return parts[1].trim();
+            }
+        }
+        return "";
+    }
+
+    private String agregarPropiedadCss(String style, String property, String value) {
+        StringBuilder result = new StringBuilder();
+        boolean replaced = false;
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            if (parts[0].trim().equalsIgnoreCase(property)) {
+                if (!replaced) {
+                    result.append(property).append(": ").append(value).append("; ");
+                    replaced = true;
+                }
+            } else {
+                result.append(parts[0].trim()).append(": ").append(parts[1].trim()).append("; ");
+            }
+        }
+        if (!replaced) {
+            result.append(property).append(": ").append(value).append("; ");
+        }
+        return result.toString().trim();
+    }
+
     private static final java.util.Set<String> ALLOWED_PDF_STYLE_PROPERTIES = java.util.Set.of(
             "color", "background-color", "background", "font-weight", "font-style",
-            "text-decoration", "text-align", "border-color");
+            "text-decoration", "text-align", "border-color", "width", "height", "vertical-align");
 
     private String sanitizeStyle(String style) {
         StringBuilder result = new StringBuilder();
@@ -1220,7 +1395,7 @@ public class DocumentService {
     public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
 
         List<DocumentEntity> minutes = documentRepository
-                .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
+            .findByProjectIdAndDocumentTypeAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
                         projectId,
                         DocumentTypeEnum.MEETING_MINUTES);
 
@@ -1245,15 +1420,24 @@ public class DocumentService {
     public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
 
         List<DocumentEntity> minutes = documentRepository
-                .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(
+            .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
                         projectId,
                         DocumentTypeEnum.MEETING_MINUTES,
                         title);
 
+        List<Long> sprintIds = minutes.stream()
+            .map(DocumentEntity::getSprintId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
+            .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
+
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity entity : minutes) {
-            response.add(toResponse(entity, null));
+            response.add(toResponse(entity, sprintsById));
         }
 
         return response;
