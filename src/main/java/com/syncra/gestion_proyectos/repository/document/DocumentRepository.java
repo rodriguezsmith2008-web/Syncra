@@ -42,4 +42,7 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> 
             
     List<DocumentEntity> findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(Long projectId);
 
+    /** Para sincronizar en lote título/ícono de documentos enlazados desde otro documento. */
+    List<DocumentEntity> findByProjectIdAndIdInAndDeletedAtIsNull(Long projectId, List<Long> ids);
+
 }

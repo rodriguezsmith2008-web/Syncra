@@ -27,6 +27,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentSummaryResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
@@ -128,6 +129,27 @@ public class DocumentService {
         }
 
         return toResponse(entity, sprintsById);
+    }
+
+    /**
+     * Versión liviana (id, título, ícono) de varios documentos del proyecto a la
+     * vez, para sincronizar tarjetas/filas que enlazan a otros documentos sin
+     * transferir el contenido completo de cada uno.
+     */
+    public List<DocumentSummaryResponseDTO> getSummaries(Long projectId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        return documentRepository.findByProjectIdAndIdInAndDeletedAtIsNull(projectId, ids).stream()
+                .map(entity -> {
+                    DocumentSummaryResponseDTO summary = new DocumentSummaryResponseDTO();
+                    summary.setId(entity.getId());
+                    summary.setTitle(entity.getTitle());
+                    summary.setCoverImageUrl(entity.getCoverImageUrl());
+                    return summary;
+                })
+                .toList();
     }
 
     /**

@@ -14,6 +14,7 @@ import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentSummaryResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.dto.document.SectionMatchResponseDTO;
 import com.syncra.gestion_proyectos.dto.activity.ActivityLogResponseDTO;
@@ -67,6 +68,21 @@ public class DocumentController {
 
         return ResponseEntity.ok(
                 documentService.getById(id)
+        );
+    }
+
+    /**
+     * Versión liviana (id, título, ícono) de varios documentos a la vez, usada
+     * para sincronizar tarjetas/filas que enlazan a otros documentos sin
+     * transferir el contenido completo de cada uno.
+     */
+    @GetMapping("/summaries")
+    public ResponseEntity<List<DocumentSummaryResponseDTO>> getSummaries(
+            @PathVariable Long projectId,
+            @RequestParam(name = "ids") List<Long> ids) {
+
+        return ResponseEntity.ok(
+                documentService.getSummaries(projectId, ids)
         );
     }
 
