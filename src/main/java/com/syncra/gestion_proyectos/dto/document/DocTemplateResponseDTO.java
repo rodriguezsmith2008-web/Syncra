@@ -15,6 +15,7 @@ public class DocTemplateResponseDTO {
     private Long position;
     private String defaultContent;
     private boolean published;
+    private boolean hasUnpublishedChanges;
     private Long parentTemplateId;
     private List<DocTemplateResponseDTO> children;
     private List<DocTemplateSectionDTO> sections;

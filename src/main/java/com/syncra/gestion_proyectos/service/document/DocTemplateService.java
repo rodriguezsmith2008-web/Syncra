@@ -173,6 +173,10 @@ public class DocTemplateService {
         response.setDescription(template.getDescription());
         response.setPosition(template.getPosition());
         response.setPublished(template.isPublished());
+        response.setHasUnpublishedChanges(
+                template.getDraftContent() != null
+                        || template.getDraftTitle() != null
+                        || template.getDraftDescription() != null);
         response.setParentTemplateId(template.getParentTemplateId());
 
         if (includeContent) {
