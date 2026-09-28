@@ -1,13 +1,20 @@
 package com.syncra.gestion_proyectos.service.files;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
@@ -25,6 +32,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class FileService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileService.class);
 
     private final FileRepository repository;
     private final Cloudinary cloudinary;
@@ -70,16 +79,27 @@ public class FileService {
     public FileResponseDTO upload(Long projectId, Long uploadedBy, MultipartFile file) {
 
         String url;
+        String publicId;
+        String resourceType;
         String originalFilename = file.getOriginalFilename();
 
         try {
-            Map<?, ?> uploadOptions = ObjectUtils.asMap("resource_type", "auto");
+            String safeBaseName = originalFilename == null || originalFilename.isBlank()
+                    ? "archivo"
+                    : originalFilename.contains(".")
+                        ? originalFilename.substring(0, originalFilename.lastIndexOf('.'))
+                        : originalFilename;
+            String normalizedBaseName = safeBaseName.replaceAll("[^a-zA-Z0-9_-]", "-");
+                boolean raw = esArchivoRaw(originalFilename, file.getContentType())
+                    || esPdf(originalFilename, file.getContentType());
+                String extension = raw ? obtenerExtension(originalFilename, file.getContentType()) : "";
+                publicId = "syncra/projects/" + projectId + "/" + normalizedBaseName + "-" + UUID.randomUUID()
+                    + extension;
+                resourceType = raw ? "raw" : "image";
 
-            if (esArchivoRaw(originalFilename, file.getContentType())) {
-                uploadOptions = ObjectUtils.asMap(
-                        "resource_type", "raw",
-                        "public_id", originalFilename);
-            }
+            Map<String, Object> uploadOptions = new java.util.HashMap<>();
+                uploadOptions.put("resource_type", raw ? "raw" : "auto");
+            uploadOptions.put("public_id", publicId);
 
             Map<?, ?> resultado = cloudinary.uploader().upload(file.getBytes(), uploadOptions);
             url = resultado.get("secure_url").toString();
@@ -91,6 +111,8 @@ public class FileService {
         entity.setProjectId(projectId);
         entity.setName(originalFilename);
         entity.setUrl(url);
+        entity.setCloudinaryPublicId(publicId);
+        entity.setCloudinaryResourceType(resourceType);
         entity.setType(resolverTipo(file.getContentType()));
         entity.setUploadedBy(uploadedBy);
 
@@ -111,6 +133,82 @@ public class FileService {
         return dto;
     }
 
+    public String uploadImageFromUrl(Long projectId, String imageUrl) {
+        try {
+            URI uri = URI.create(imageUrl.trim());
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new IllegalArgumentException("La URL debe usar http o https");
+            }
+
+            InetAddress address = InetAddress.getByName(uri.getHost());
+            if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
+                    || address.isSiteLocalAddress()) {
+                throw new IllegalArgumentException("La URL no es accesible");
+            }
+
+            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection.setRequestProperty("User-Agent", "Syncra/1.0");
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(15000);
+            connection.setInstanceFollowRedirects(true);
+            connection.connect();
+
+            if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300) {
+                throw new IOException("La imagen no se pudo descargar");
+            }
+
+            String contentType = connection.getContentType();
+            if (contentType == null || !contentType.toLowerCase(Locale.ROOT).startsWith("image/")) {
+                throw new IllegalArgumentException("La URL no apunta a una imagen");
+            }
+
+            int contentLength = connection.getContentLength();
+            if (contentLength > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("La imagen supera los 10 MB");
+            }
+
+            byte[] bytes;
+            try (InputStream input = connection.getInputStream()) {
+                bytes = input.readNBytes(10 * 1024 * 1024 + 1);
+            } finally {
+                connection.disconnect();
+            }
+
+            if (bytes.length > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("La imagen supera los 10 MB");
+            }
+
+            Map<?, ?> result = cloudinary.uploader().upload(bytes, ObjectUtils.asMap(
+                    "resource_type", "image",
+                    "public_id", "syncra/projects/" + projectId + "/url-image-" + UUID.randomUUID()));
+            return String.valueOf(result.get("secure_url"));
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("No se pudo subir la imagen desde la URL", exception);
+        }
+    }
+
+    private String obtenerExtension(String filename, String contentType) {
+        if (filename != null) {
+            int punto = filename.lastIndexOf('.');
+            if (punto >= 0 && punto < filename.length() - 1) {
+                return filename.substring(punto).toLowerCase(Locale.ROOT)
+                        .replaceAll("[^a-z0-9.]", "");
+            }
+        }
+
+        String tipo = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+        return switch (tipo) {
+            case "application/pdf" -> ".pdf";
+            case "application/vnd.ms-excel" -> ".xls";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> ".xlsx";
+            case "application/vnd.ms-powerpoint" -> ".ppt";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> ".pptx";
+            case "application/msword" -> ".doc";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx";
+            default -> "";
+        };
+    }
+
     private boolean esArchivoRaw(String filename, String contentType) {
         String normalizedFilename = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
         String normalizedContentType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
@@ -123,6 +221,13 @@ public class FileService {
                 || normalizedContentType.equals("application/vnd.ms-excel")
                 || normalizedContentType.equals("application/vnd.openxmlformats-officedocument.presentationml.presentation")
                 || normalizedContentType.equals("application/vnd.ms-powerpoint");
+    }
+
+    private boolean esPdf(String filename, String contentType) {
+        String normalizedFilename = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        String normalizedContentType = contentType == null ? "" : contentType.toLowerCase(Locale.ROOT);
+
+        return normalizedFilename.endsWith(".pdf") || normalizedContentType.equals("application/pdf");
     }
 
     /**
@@ -153,6 +258,15 @@ public class FileService {
         }
 
         String name = entity.getName();
+
+        if (entity.getCloudinaryPublicId() != null) {
+            try {
+                cloudinary.uploader().destroy(entity.getCloudinaryPublicId(),
+                        ObjectUtils.asMap("resource_type", entity.getCloudinaryResourceType()));
+            } catch (Exception exception) {
+                log.warn("No se pudo eliminar el archivo {} de Cloudinary", entity.getCloudinaryPublicId(), exception);
+            }
+        }
 
         repository.delete(entity);
 

@@ -23,4 +23,7 @@ public class ProjectResponseDTO {
     private Long createdBy;
     private String createdByName;
     private LocalDateTime createdAt;
+    private long totalDocuments;
+    private long approvedDocuments;
+    private int progress;
 }

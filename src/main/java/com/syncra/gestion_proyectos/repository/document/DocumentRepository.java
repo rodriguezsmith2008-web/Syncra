@@ -23,15 +23,26 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> 
     /** Subdocumentos */
     List<DocumentEntity> findByParentDocumentIdAndDeletedAtIsNullOrderBySortOrderAsc(Long parentDocumentId);
 
-    /** Actas */
+    /** Actas ordenadas de la más reciente a la más antigua */
     List<DocumentEntity> findByProjectIdAndDocumentTypeAndDeletedAtIsNull(Long projectId,
             DocumentTypeEnum documentType);
+
+    List<DocumentEntity> findByProjectIdAndDocumentTypeAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
+            Long projectId, DocumentTypeEnum documentType);
 
     List<DocumentEntity> findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(Long projectId,
             DocumentTypeEnum documentType, String title);
 
+    List<DocumentEntity> findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
+            Long projectId, DocumentTypeEnum documentType, String title);
+
     List<DocumentEntity> findByParentDocumentIdAndDocumentTypeAndDeletedAtIsNullOrderBySortOrderAsc(
             Long parentDocumentId,
             DocumentTypeEnum documentType);
+            
+    List<DocumentEntity> findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(Long projectId);
+
+    /** Para sincronizar en lote título/ícono de documentos enlazados desde otro documento. */
+    List<DocumentEntity> findByProjectIdAndIdInAndDeletedAtIsNull(Long projectId, List<Long> ids);
 
 }

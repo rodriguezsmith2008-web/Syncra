@@ -10,6 +10,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
@@ -31,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     /**
      * Repositorio de usuarios
@@ -68,6 +72,7 @@ public class UserService {
             dto.setGroupName(user.getGroupName());
             dto.setAvatarUrl(user.getAvatarUrl());
             dto.setStatus(user.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
             response.add(dto);
         }
@@ -102,8 +107,20 @@ public class UserService {
         response.setGroupName(user.getGroupName());
         response.setAvatarUrl(user.getAvatarUrl());
         response.setStatus(user.getStatus().name());
+        response.setHasProject(user.getRole() == RoleUserEnum.APPRENTICE
+            ? projectMemberRepository.existsByIdUserId(user.getId())
+            : null);
+        response.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
         return response;
+    }
+
+    public UserResponseDTO markOnboardingSeen(Long id) {
+        UsersEntity user = usersRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Usuario no encontrado"));
+        user.setHasSeenOnboarding(true);
+        usersRepository.save(user);
+        return getUserById(id);
     }
 
     /**
@@ -131,6 +148,7 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setGroupName(request.getGroupName());
         user.setAvatarUrl(request.getAvatarUrl());
+        user.setAvatarPublicId(request.getAvatarPublicId());
 
         // ==============================
         // Rol
@@ -204,8 +222,19 @@ public class UserService {
             user.setDocumentNumber(request.getDocumentNumber());
         if (request.getGroupName() != null)
             user.setGroupName(request.getGroupName());
-        if (request.getAvatarUrl() != null)
+        if (request.getAvatarUrl() != null
+                && !java.util.Objects.equals(request.getAvatarUrl(), user.getAvatarUrl())) {
+            if (user.getAvatarPublicId() != null) {
+                try {
+                    cloudinary.uploader().destroy(user.getAvatarPublicId(),
+                            ObjectUtils.asMap("resource_type", "image"));
+                } catch (Exception exception) {
+                    log.warn("No se pudo eliminar el avatar {} de Cloudinary", user.getAvatarPublicId(), exception);
+                }
+            }
             user.setAvatarUrl(request.getAvatarUrl());
+            user.setAvatarPublicId(request.getAvatarPublicId());
+        }
 
         if (request.getStatus() != null) {
             UserStatusEnum newStatus = null;
@@ -348,6 +377,7 @@ public class UserService {
             dto.setGroupName(userfound.getGroupName());
             dto.setAvatarUrl(userfound.getAvatarUrl());
             dto.setStatus(userfound.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(userfound.getHasSeenOnboarding()));
 
             dtos.add(dto);
         }
@@ -381,6 +411,7 @@ public class UserService {
         response.setGroupName(user.getGroupName());
         response.setAvatarUrl(user.getAvatarUrl());
         response.setStatus(user.getStatus().name());
+        response.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
         return response;
     }
@@ -407,6 +438,7 @@ public class UserService {
             dto.setGroupName(userfound.getGroupName());
             dto.setAvatarUrl(userfound.getAvatarUrl());
             dto.setStatus(userfound.getStatus().name());
+            dto.setHasSeenOnboarding(Boolean.TRUE.equals(userfound.getHasSeenOnboarding()));
 
             dtos.add(dto);
         }
@@ -423,15 +455,16 @@ public class UserService {
      */
     public FileUploadResponseDTO uploadAvatar(MultipartFile file) throws IOException {
 
-        Map uploadResult = cloudinary.uploader().upload(
+        Map<?, ?> uploadResult = cloudinary.uploader().upload(
                 file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", "avatars",
                         "resource_type", "image"));
 
         String url = (String) uploadResult.get("secure_url");
+        String publicId = String.valueOf(uploadResult.get("public_id"));
 
-        return new FileUploadResponseDTO(url);
+        return new FileUploadResponseDTO(url, publicId);
     }
 
     /**
@@ -468,8 +501,19 @@ public class UserService {
     if (update.getDocumentNumber() != null)
         usersEntity.setDocumentNumber(update.getDocumentNumber());
 
-    // avatarUrl siempre se aplica tal cual llega, incluyendo null para borrar la foto
-    usersEntity.setAvatarUrl(update.getAvatarUrl());
+    if (!java.util.Objects.equals(update.getAvatarUrl(), usersEntity.getAvatarUrl())) {
+        if (usersEntity.getAvatarPublicId() != null) {
+            try {
+                cloudinary.uploader().destroy(usersEntity.getAvatarPublicId(),
+                        ObjectUtils.asMap("resource_type", "image"));
+            } catch (Exception exception) {
+                log.warn("No se pudo eliminar el avatar {} de Cloudinary", usersEntity.getAvatarPublicId(), exception);
+            }
+        }
+
+        usersEntity.setAvatarPublicId(update.getAvatarPublicId());
+        usersEntity.setAvatarUrl(update.getAvatarUrl());
+    }
 
     usersRepository.save(usersEntity);
     message.setUserMessage("Actualización exitosa");
@@ -613,6 +657,7 @@ private UserResponseDTO toUserResponseDTO(UsersEntity user) {
     dto.setGroupName(user.getGroupName());
     dto.setAvatarUrl(user.getAvatarUrl());
     dto.setStatus(user.getStatus().name());
+    dto.setHasSeenOnboarding(Boolean.TRUE.equals(user.getHasSeenOnboarding()));
 
     if (user.getRole() == RoleUserEnum.APPRENTICE) {
         boolean hasProject = projectMemberRepository.existsByIdUserId(user.getId());

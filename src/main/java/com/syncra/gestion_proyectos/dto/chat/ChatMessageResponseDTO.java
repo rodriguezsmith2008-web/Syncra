@@ -16,5 +16,12 @@ public class ChatMessageResponseDTO {
     private String senderAvatarUrl;
     private String content;
     private Boolean isRead;
+    private String type;
     private LocalDateTime createdAt;
+
+    private Long replyToMessageId;
+    private Long replyToSenderId;
+    private String replyToSenderName;
+    private String replyToContent;
+    private String replyToType;
 }

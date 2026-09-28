@@ -51,6 +51,9 @@ public class UsersEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String avatarUrl;
 
+    @Column(name = "avatar_public_id", length = 500)
+    private String avatarPublicId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserStatusEnum status = UserStatusEnum.IN_TRAINING;
@@ -68,5 +71,8 @@ public class UsersEntity {
     // Indica si el usuario debe cambiar la contraseña en el próximo login
     @Column(name = "must_change_password")
     private Boolean mustChangePassword = false;
+
+    @Column(name = "has_seen_onboarding", nullable = false)
+    private Boolean hasSeenOnboarding = false;
 
 }

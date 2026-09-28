@@ -17,6 +17,9 @@ public class ActivityLogResponseDTO {
     private Long entityId;
     private ActivityActionEnum action;
     private String description;
+    private String targetSnippet;
+    private String targetSectionKey;
+    private String changeKind;
     private Long userId;
     private String userFullName;
     private String userAvatarUrl;

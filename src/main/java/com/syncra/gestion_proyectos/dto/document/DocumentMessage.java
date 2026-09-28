@@ -7,4 +7,5 @@ import lombok.Data;
 public class DocumentMessage {
 
     private String message;
+    private DocumentCommentResponseDTO comment;
 }

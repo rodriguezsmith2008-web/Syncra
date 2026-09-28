@@ -56,7 +56,7 @@ public class AccessRequestService {
         boolean existeDocRequest = accessRequestRepository.existsByDocumentNumberAndStatus(
                 request.getDocumentNumber(), AccessStatusEnum.PENDING);
         if (existeDocRequest) {
-            message.setMessage("Ya existe una solicitud pendiente con este número de documento");
+            message.setMessage("Documento inválido.");
             return message;
         }
         // la ficha (groupName) solo es obligatoria para aprendices
@@ -69,20 +69,20 @@ public class AccessRequestService {
         // valida que el documento no esté ya registrado en users
         boolean existeDocUser = usersRepository.existsByDocumentNumber(request.getDocumentNumber());
         if (existeDocUser) {
-            message.setMessage("Este número de documento ya está registrado en el sistema");
+            message.setMessage("Documento inválido.");
             return message;
         }
 
         boolean existeRequest = accessRequestRepository.existsByEmailAndStatus(
                 request.getEmail(), AccessStatusEnum.PENDING);
         if (existeRequest) {
-            message.setMessage("Ya existe una solicitud pendiente con este email");
+            message.setMessage("Correo inválido.");
             return message;
         }
 
         boolean existeUser = usersRepository.existsByEmail(request.getEmail());
         if (existeUser) {
-            message.setMessage("Este email ya está registrado en el sistema");
+            message.setMessage("Correo inválido.");
             return message;
         }
 

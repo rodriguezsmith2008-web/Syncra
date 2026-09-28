@@ -4,11 +4,18 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import com.syncra.gestion_proyectos.dto.document.DocTemplateResponseDTO;
+import com.syncra.gestion_proyectos.dto.document.DocTemplateCreateDTO;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.security.RequireRole;
 import com.syncra.gestion_proyectos.service.document.DocTemplateService;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +42,18 @@ public class DocTemplateController {
         return ResponseEntity.ok(docTemplateService.listAll());
     }
 
+    @RequireRole(RoleUserEnum.APPRENTICE)
+    @GetMapping("/published")
+    public ResponseEntity<List<DocTemplateResponseDTO>> listPublished() {
+        return ResponseEntity.ok(docTemplateService.listPublished());
+    }
+
+    @RequireRole(RoleUserEnum.APPRENTICE)
+    @GetMapping("/published/tree")
+    public ResponseEntity<List<DocTemplateResponseDTO>> listPublishedTree() {
+        return ResponseEntity.ok(docTemplateService.listPublishedTree());
+    }
+
     /**
      * Obtiene una plantilla puntual junto con su contenido base
      *
@@ -44,5 +63,38 @@ public class DocTemplateController {
     @GetMapping("/{id}")
     public ResponseEntity<DocTemplateResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(docTemplateService.getById(id));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @GetMapping("/{id}/draft")
+    public ResponseEntity<DocTemplateResponseDTO> getDraftById(@PathVariable Long id) {
+        return ResponseEntity.ok(docTemplateService.getDraftById(id));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PostMapping
+    public ResponseEntity<DocTemplateResponseDTO> create(@RequestBody DocTemplateCreateDTO request) {
+        return ResponseEntity.status(201).body(docTemplateService.create(request));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PutMapping("/{id}")
+    public ResponseEntity<DocTemplateResponseDTO> update(
+            @PathVariable Long id,
+            @RequestBody DocTemplateCreateDTO request) {
+        return ResponseEntity.ok(docTemplateService.update(id, request));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @PostMapping("/{id}/publish")
+    public ResponseEntity<DocTemplateResponseDTO> publish(@PathVariable Long id) {
+        return ResponseEntity.ok(docTemplateService.publish(id));
+    }
+
+    @RequireRole(RoleUserEnum.INSTRUCTOR)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        docTemplateService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

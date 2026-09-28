@@ -63,6 +63,13 @@ public class ChatController {
                 projectId, getUserId(request), messageId));
             }
 
+    @PostMapping("/messages/call")
+    public ResponseEntity<ChatMessageResponseDTO> startProjectCall(
+            @PathVariable Long projectId, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(chatService.startProjectCall(projectId, getUserId(request)));
+    }
+
     @GetMapping("/conversations")
     public ResponseEntity<List<ConversationResponseDTO>> getConversations(
             @PathVariable Long projectId, HttpServletRequest request) {
@@ -118,6 +125,15 @@ public class ChatController {
                 return ResponseEntity.ok(chatService.deletePrivateMessage(
                     projectId, getUserId(request), conversationId, messageId));
                 }
+
+    @PostMapping("/conversations/{conversationId}/messages/call")
+    public ResponseEntity<ChatMessageResponseDTO> startPrivateCall(
+            @PathVariable Long projectId,
+            @PathVariable Long conversationId,
+            HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(chatService.startPrivateCall(projectId, getUserId(request), conversationId));
+    }
 
     @PutMapping("/conversations/{conversationId}/read")
     public ResponseEntity<Void> markConversationAsRead(

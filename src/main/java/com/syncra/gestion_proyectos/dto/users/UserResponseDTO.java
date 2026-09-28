@@ -25,4 +25,6 @@ public class UserResponseDTO {
 
     private Boolean hasProject;
 
+    private Boolean hasSeenOnboarding;
+
 }

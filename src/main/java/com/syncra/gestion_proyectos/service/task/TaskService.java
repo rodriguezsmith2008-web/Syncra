@@ -3,7 +3,9 @@ package com.syncra.gestion_proyectos.service.task;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.time.LocalDateTime;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import com.syncra.gestion_proyectos.dto.task.TaskMoveDTO;
@@ -13,6 +15,7 @@ import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.repository.task.TaskRepository;
+import com.syncra.gestion_proyectos.repository.kanban.KanbanColumnRepository;
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
 
@@ -24,9 +27,12 @@ import lombok.RequiredArgsConstructor;
 public class TaskService {
 
     private final TaskRepository repository;
+    private final KanbanColumnRepository kanbanColumnRepository;
     private final TaskHistoryService taskHistoryService;
     private final NotificationService notificationService;
-        private final UsersRepository usersRepository;
+    private final UsersRepository usersRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final TaskRealtimeService taskRealtimeService;
 
     /**
      * Obtiene todas las tareas de un proyecto (tablero kanban completo)
@@ -135,6 +141,7 @@ public class TaskService {
         entity.setDescription(dto.getDescription());
         entity.setColor(dto.getColor());
         entity.setDueDate(dto.getDueDate());
+        entity.setDueTime(dto.getDueTime());
         entity.setAssignedTo(dto.getAssignedTo());
         entity.setCreatedBy(createdBy);
 
@@ -147,6 +154,7 @@ public class TaskService {
         repository.save(entity);
 
         taskHistoryService.registrar(entity.getId(), createdBy, "CREATED", null, entity.getTitle());
+        taskRealtimeService.publishChanged(entity.getProjectId(), entity.getId(), "CREATED");
 
         if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(createdBy)) {
             notificationService.crear(entity.getAssignedTo(), createdBy, entity.getProjectId(), entity.getId(), null, null,
@@ -186,6 +194,7 @@ public class TaskService {
             entity.setColor(dto.getColor());
 
         entity.setDueDate(dto.getDueDate());
+        entity.setDueTime(dto.getDueTime());
 
         if (dto.getSprintId() != null)
             entity.setSprintId(dto.getSprintId());
@@ -222,6 +231,8 @@ public class TaskService {
             }
         }
 
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "UPDATED");
+
         return toResponse(entity);
     }
 
@@ -248,7 +259,17 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
     Long columnaDestino = dto.getColumnId();
     Long posicionDestino = dto.getPosition();
 
+        boolean columnaAnteriorFinal = Boolean.TRUE.equals(
+            kanbanColumnRepository.findById(columnaAnterior)
+                .map(columna -> columna.getIsFinal())
+                .orElse(false));
+        boolean columnaDestinoFinal = Boolean.TRUE.equals(
+            kanbanColumnRepository.findById(columnaDestino)
+                .map(columna -> columna.getIsFinal())
+                .orElse(false));
+
     boolean cambioDeColumna = !columnaAnterior.equals(columnaDestino);
+    boolean huboMovimiento = cambioDeColumna || !posicionAnterior.equals(posicionDestino);
 
     if (cambioDeColumna) {
 
@@ -267,11 +288,6 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
                 repository.save(restante);
             }
         }
-
-       if (entity.getAssignedTo() != null && !entity.getAssignedTo().equals(userId)) {
-    notificationService.crear(entity.getAssignedTo(), userId, entity.getProjectId(), entity.getId(), null, null,
-            "TASK_MOVED", "La tarea '" + entity.getTitle() + "' cambio de columna");
-}
 
     } else if (!posicionAnterior.equals(posicionDestino)) {
 
@@ -294,10 +310,29 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
     entity.setColumnId(columnaDestino);
     entity.setPosition(posicionDestino);
+    if (columnaDestinoFinal) {
+        entity.setCompletedAt(entity.getCompletedAt() == null ? LocalDateTime.now() : entity.getCompletedAt());
+    } else if (columnaAnteriorFinal) {
+        entity.setCompletedAt(null);
+    }
     repository.save(entity);
 
-    if (!columnaAnterior.equals(columnaDestino) || !posicionAnterior.equals(posicionDestino)) {
+    if (huboMovimiento) {
+        Long recipientUserId = entity.getAssignedTo();
+        if (recipientUserId != null && !recipientUserId.equals(userId)) {
+            applicationEventPublisher.publishEvent(
+                    new TaskMoveNotificationEvent(
+                            taskId,
+                            entity.getProjectId(),
+                            entity.getTitle(),
+                            recipientUserId,
+                            userId
+                    )
+            );
+        }
+
         taskHistoryService.registrar(taskId, userId, "MOVED", posicionAnterior.toString(), posicionDestino.toString());
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "MOVED");
     }
 
     return toResponse(entity);
@@ -327,6 +362,8 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
             restante.setPosition(restante.getPosition() - 1);
             repository.save(restante);
         }
+
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "DELETED");
     }
 
     /**
@@ -364,11 +401,13 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
         dto.setDescription(entity.getDescription());
         dto.setColor(entity.getColor());
         dto.setDueDate(entity.getDueDate());
+        dto.setDueTime(entity.getDueTime());
         dto.setAssignedTo(entity.getAssignedTo());
         dto.setCreatedBy(entity.getCreatedBy());
         dto.setPosition(entity.getPosition());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setCompletedAt(entity.getCompletedAt());
 
         return dto;
     }
@@ -380,6 +419,7 @@ public TaskResponseDTO move(Long taskId, Long userId, TaskMoveDTO dto) {
 
         entity.setAssignedTo(null);
         repository.save(entity);
+        taskRealtimeService.publishChanged(entity.getProjectId(), taskId, "UPDATED");
 
         return toResponse(entity);
     }

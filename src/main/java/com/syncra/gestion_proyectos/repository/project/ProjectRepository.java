@@ -15,6 +15,8 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
     //obtiene todos los proyectos que se encuentran en un estado específico
     List<ProjectEntity> findByStatus(ProjectStatusEnum status);
 
+    long countByStatus(ProjectStatusEnum status);
+
     //obtiene los proyectos que se encuentren a un grupo específico
     List<ProjectEntity> findByGroupName(String groupName);
 }

@@ -14,7 +14,9 @@ import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentSummaryResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.SectionMatchResponseDTO;
 import com.syncra.gestion_proyectos.dto.activity.ActivityLogResponseDTO;
 import com.syncra.gestion_proyectos.enums.RoleUserEnum;
 import com.syncra.gestion_proyectos.security.RequireRole;
@@ -22,6 +24,7 @@ import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
 import com.syncra.gestion_proyectos.service.document.DocumentService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -69,6 +72,21 @@ public class DocumentController {
     }
 
     /**
+     * Versión liviana (id, título, ícono) de varios documentos a la vez, usada
+     * para sincronizar tarjetas/filas que enlazan a otros documentos sin
+     * transferir el contenido completo de cada uno.
+     */
+    @GetMapping("/summaries")
+    public ResponseEntity<List<DocumentSummaryResponseDTO>> getSummaries(
+            @PathVariable Long projectId,
+            @RequestParam(name = "ids") List<Long> ids) {
+
+        return ResponseEntity.ok(
+                documentService.getSummaries(projectId, ids)
+        );
+    }
+
+    /**
      * Obtiene los subdocumentos de un documento.
      */
     @GetMapping("/{id}/children")
@@ -91,7 +109,7 @@ public class DocumentController {
     /**
      * Crear documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PostMapping
     public ResponseEntity<DocumentResponseDTO> create(
             @PathVariable Long projectId,
@@ -130,10 +148,21 @@ public class DocumentController {
         );
     }
 
+    
+    @GetMapping("/sections")
+    public ResponseEntity<List<SectionMatchResponseDTO>> findSectionMatches(
+            @PathVariable Long projectId,
+            @RequestParam(name = "sectionKey") List<String> sectionKeys) {
+
+        return ResponseEntity.ok(
+                documentService.findSectionMatches(projectId, sectionKeys)
+        );
+    }
+
     /**
      * Actualizar documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @PutMapping("/{id}")
     public ResponseEntity<DocumentMessage> update(
             @PathVariable Long id,
@@ -150,7 +179,7 @@ public class DocumentController {
     /**
      * Eliminar documento.
      */
-    @RequireRole(RoleUserEnum.APPRENTICE)
+    @RequireRole({ RoleUserEnum.APPRENTICE, RoleUserEnum.INSTRUCTOR, RoleUserEnum.ADMIN })
     @DeleteMapping("/{id}")
     public ResponseEntity<DocumentMessage> delete(
             @PathVariable Long id) {
@@ -199,9 +228,11 @@ public class DocumentController {
 
         Long userId = (Long) request.getAttribute("userId");
 
-        return ResponseEntity.ok(
-                documentService.updateStatus(documentId, dto, userId)
-        );
+        DocumentResponseDTO updated = documentService.updateStatus(documentId, dto, userId);
+        if (updated == null) {
+            throw new EntityNotFoundException("Documento no encontrado");
+        }
+        return ResponseEntity.ok(updated);
     }
 
     /**

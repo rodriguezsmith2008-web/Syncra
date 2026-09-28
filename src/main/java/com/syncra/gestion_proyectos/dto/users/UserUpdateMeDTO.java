@@ -41,4 +41,6 @@ public class UserUpdateMeDTO {
      */
     private String avatarUrl;
 
+    private String avatarPublicId;
+
 }

@@ -1,12 +1,15 @@
 package com.syncra.gestion_proyectos.repository.task;
 
 import java.util.List;
+import java.time.LocalDate;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.syncra.gestion_proyectos.entity.task.TaskEntity;
 
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
+
+    List<TaskEntity> findByDueDate(LocalDate dueDate);
 
     /**
      * Obtiene todas las tareas de un proyecto, ordenadas por columna y posicion.

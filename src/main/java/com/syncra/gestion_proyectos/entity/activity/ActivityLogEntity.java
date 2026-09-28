@@ -39,8 +39,17 @@ public class ActivityLogEntity {
     @Column(nullable = false)
     private ActivityActionEnum action;
 
-    @Column(nullable = false, length = 300)
+    @Column(nullable = false, length = 1000)
     private String description;
+
+    @Column(name = "target_snippet", length = 255)
+    private String targetSnippet;
+
+    @Column(name = "target_section_key", length = 255)
+    private String targetSectionKey;
+
+    @Column(name = "change_kind", length = 32)
+    private String changeKind;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;

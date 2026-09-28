@@ -9,4 +9,6 @@ import com.syncra.gestion_proyectos.entity.kanban.KanbanColumnEntity;
 public interface KanbanColumnRepository extends JpaRepository<KanbanColumnEntity,Long> {
 
     List<KanbanColumnEntity> findByProjectIdOrderByPositionAsc(Long projectId);
+
+    KanbanColumnEntity findByProjectIdAndNameIgnoreCase(Long projectId, String name);
 }

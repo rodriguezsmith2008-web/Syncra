@@ -6,8 +6,21 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.syncra.gestion_proyectos.security.JsonAccessDeniedHandler;
+import com.syncra.gestion_proyectos.security.JsonAuthenticationEntryPoint;
+
 @Configuration
 public class SecurityConfig {
+
+    private final JsonAccessDeniedHandler accessDeniedHandler;
+    private final JsonAuthenticationEntryPoint authenticationEntryPoint;
+
+    public SecurityConfig(
+            JsonAccessDeniedHandler accessDeniedHandler,
+            JsonAuthenticationEntryPoint authenticationEntryPoint) {
+        this.accessDeniedHandler = accessDeniedHandler;
+        this.authenticationEntryPoint = authenticationEntryPoint;
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -29,6 +42,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     .anyRequest().permitAll()
             )
+
+                .exceptionHandling(exception -> exception
+                    .accessDeniedHandler(accessDeniedHandler)
+                    .authenticationEntryPoint(authenticationEntryPoint))
 
             .formLogin(form -> form.disable())
             .httpBasic(httpBasic -> httpBasic.disable());

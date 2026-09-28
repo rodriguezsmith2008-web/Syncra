@@ -32,4 +32,19 @@ public class DocTemplateEntity {
     @Column(name = "default_content", columnDefinition = "LONGTEXT")
     private String defaultContent;
 
+    @Column(name = "draft_content", columnDefinition = "LONGTEXT")
+    private String draftContent;
+
+    @Column(name = "draft_title", length = 200)
+    private String draftTitle;
+
+    @Column(name = "draft_description", length = 500)
+    private String draftDescription;
+
+    @Column(name = "published", nullable = false)
+    private boolean published = true;
+
+    @Column(name = "parent_template_id")
+    private Long parentTemplateId;
+
 }

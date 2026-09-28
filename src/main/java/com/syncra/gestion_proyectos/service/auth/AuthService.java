@@ -60,11 +60,11 @@ public class AuthService {
         user.setDocumentNumber(request.getDocumentNumber());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setGroupName(request.getGroupName());
         user.setAvatarUrl(request.getAvatarUrl());
 
-        // El usuario no puede elegir rol al registrarse
-        user.setRole(RoleUserEnum.APPRENTICE);
+        RoleUserEnum role = resolveRole(request);
+        user.setRole(role);
+        user.setGroupName(role == RoleUserEnum.INSTRUCTOR ? null : request.getGroupName());
 
         // El usuario queda pendiente de activación
         user.setStatus(UserStatusEnum.IN_TRAINING);
@@ -75,6 +75,12 @@ public class AuthService {
                 "Registro exitoso. Tu cuenta está pendiente de activación por un administrador");
 
         return response;
+    }
+
+    private RoleUserEnum resolveRole(UserRequestDTO request) {
+        return request.getGroupName() == null || request.getGroupName().isBlank()
+                ? RoleUserEnum.INSTRUCTOR
+                : RoleUserEnum.APPRENTICE;
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.syncra.gestion_proyectos.repository.notification;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -35,6 +36,8 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
      */
     long countByUserIdAndIsReadFalse(Long userId);
 
+    boolean existsByUserIdAndTaskIdAndType(Long userId, Long taskId, String type);
+
     /**
      * Metodo para leer toda las notificaciones
      * 
@@ -61,4 +64,8 @@ public interface NotificationRepository extends JpaRepository<NotificationEntity
      * @param userId
      */
     void deleteByUserIdAndIsReadTrue(Long userId);
+
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    long deleteByIsReadTrueAndCreatedAtBefore(LocalDateTime limite);
 }

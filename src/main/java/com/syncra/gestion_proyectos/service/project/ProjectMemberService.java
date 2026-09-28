@@ -24,6 +24,7 @@ public class ProjectMemberService {
     private final ProjectMemberRepository memberRepository;
     private final ProjectRepository projectRepository;
     private final UsersRepository userRepository;
+    private final ProjectMemberRealtimeService realtimeService;
 
     public List<ProjectMemberResponseDTO> getMembers(Long projectId) {
         if (!projectRepository.existsById(projectId)) {
@@ -64,7 +65,10 @@ public class ProjectMemberService {
         ProjectMemberEntity saved = memberRepository.save(entity);
         UsersEntity user = userRepository.findById(userId).orElse(null);
 
-        return toResponse(saved, user);
+        ProjectMemberResponseDTO response = toResponse(saved, user);
+        realtimeService.publishChanged(projectId, userId, "ADDED", response);
+
+        return response;
     }
 
     @Transactional
@@ -73,6 +77,7 @@ public class ProjectMemberService {
             throw new EntityNotFoundException("Miembro no encontrado en el proyecto");
         }
         memberRepository.deleteByIdProjectIdAndIdUserId(projectId, userId);
+        realtimeService.publishChanged(projectId, userId, "REMOVED", null);
     }
 
     private ProjectMemberResponseDTO toResponse(ProjectMemberEntity e, UsersEntity user) {
@@ -84,6 +89,8 @@ public class ProjectMemberService {
             r.setFirstName(user.getFirstName());
             r.setLastName(user.getLastName());
             r.setAvatarUrl(user.getAvatarUrl());
+            r.setEmail(user.getEmail());
+            r.setDocumentNumber(user.getDocumentNumber());
             r.setRole(user.getRole().name());
         }
 
@@ -112,6 +119,7 @@ public class ProjectMemberService {
         }
 
         memberRepository.deleteByIdProjectIdAndIdUserId(currentProjectId, userId);
+        realtimeService.publishChanged(currentProjectId, userId, "REMOVED", null);
 
         ProjectMemberEntity entity = new ProjectMemberEntity();
         entity.setId(new ProjectMemberId(newProjectId, userId));
@@ -131,6 +139,8 @@ public class ProjectMemberService {
             dto.setAvatarUrl(user.getAvatarUrl());
             dto.setRole(user.getRole().name());
         }
+
+        realtimeService.publishChanged(newProjectId, userId, "ADDED", dto);
 
         return dto;
     }

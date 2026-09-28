@@ -2,29 +2,38 @@ package com.syncra.gestion_proyectos.service.document;
 
 import com.syncra.gestion_proyectos.repository.user.UsersRepository;
 import com.syncra.gestion_proyectos.service.notification.NotificationService;
+import com.syncra.gestion_proyectos.service.realtime.DocumentRealtimeService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentRequestDTO;
 import com.syncra.gestion_proyectos.enums.ActivityActionEnum;
 import com.syncra.gestion_proyectos.enums.ActivityEntityTypeEnum;
 import com.syncra.gestion_proyectos.service.activity.ActivityLogService;
+import com.syncra.gestion_proyectos.service.project.ProjectService;
 import com.syncra.gestion_proyectos.dto.document.DocumentCommentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentMessage;
 import com.syncra.gestion_proyectos.dto.document.DocumentRequestDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentStatusUpdateDTO;
+import com.syncra.gestion_proyectos.dto.document.DocumentSummaryResponseDTO;
 import com.syncra.gestion_proyectos.dto.document.DocumentUpdateDTO;
 import com.syncra.gestion_proyectos.entity.document.DocTemplateEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentCommentEntity;
 import com.syncra.gestion_proyectos.entity.document.DocumentEntity;
+import com.syncra.gestion_proyectos.dto.document.SectionMatchResponseDTO;
+import com.syncra.gestion_proyectos.util.SectionContentUtil;
 import com.syncra.gestion_proyectos.entity.project.ProjectMemberEntity;
 import com.syncra.gestion_proyectos.entity.sprint.SprintEntity;
 import com.syncra.gestion_proyectos.entity.user.UsersEntity;
@@ -37,6 +46,14 @@ import com.syncra.gestion_proyectos.repository.sprint.SprintRepository;
 
 import java.io.ByteArrayOutputStream;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Entities;
+import org.jsoup.parser.Tag;
+import org.jsoup.safety.Safelist;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -45,10 +62,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DocumentService {
 
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+
     private final UsersRepository usersRepository;
 
     /** Repositorio de documentos */
     private final DocumentRepository documentRepository;
+    private final DocumentRealtimeService documentRealtimeService;
 
     /** Repositorio de comentarios de documentos */
     private final DocumentCommentRepository documentCommentRepository;
@@ -60,6 +80,8 @@ public class DocumentService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ActivityLogService activityLogService;
     private final SprintRepository sprintRepository;
+    private final Cloudinary cloudinary;
+    private final ProjectService projectService;
 
     /**
      * Obtiene todos los documentos activos de un proyecto
@@ -76,9 +98,8 @@ public class DocumentService {
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity documentEntity : documentList) {
-    response.add(toResponse(documentEntity, null));
-}
-
+            response.add(toResponse(documentEntity, null));
+        }
 
         return response;
     }
@@ -89,28 +110,47 @@ public class DocumentService {
      * @param id
      * @return documento encontrado, null si no existe o fue eliminado
      */
-   public DocumentResponseDTO getById(Long id) {
+    public DocumentResponseDTO getById(Long id) {
 
-    Optional<DocumentEntity> documentFound =
-            documentRepository.findByIdAndDeletedAtIsNull(id);
+        Optional<DocumentEntity> documentFound = documentRepository.findByIdAndDeletedAtIsNull(id);
 
-    if (documentFound.isEmpty()) {
-        return null;
+        if (documentFound.isEmpty()) {
+            return null;
+        }
+
+        DocumentEntity entity = documentFound.get();
+
+        Map<Long, SprintEntity> sprintsById = null;
+
+        if (entity.getSprintId() != null) {
+            sprintsById = sprintRepository.findById(entity.getSprintId())
+                    .map(sprint -> Map.of(entity.getSprintId(), sprint))
+                    .orElse(null);
+        }
+
+        return toResponse(entity, sprintsById);
     }
 
-    DocumentEntity entity = documentFound.get();
+    /**
+     * Versión liviana (id, título, ícono) de varios documentos del proyecto a la
+     * vez, para sincronizar tarjetas/filas que enlazan a otros documentos sin
+     * transferir el contenido completo de cada uno.
+     */
+    public List<DocumentSummaryResponseDTO> getSummaries(Long projectId, List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
 
-    Map<Long, SprintEntity> sprintsById = null;
-
-    if (entity.getSprintId() != null) {
-        sprintsById = sprintRepository.findById(entity.getSprintId())
-                .map(sprint -> Map.of(entity.getSprintId(), sprint))
-                .orElse(null);
+        return documentRepository.findByProjectIdAndIdInAndDeletedAtIsNull(projectId, ids).stream()
+                .map(entity -> {
+                    DocumentSummaryResponseDTO summary = new DocumentSummaryResponseDTO();
+                    summary.setId(entity.getId());
+                    summary.setTitle(entity.getTitle());
+                    summary.setCoverImageUrl(entity.getCoverImageUrl());
+                    return summary;
+                })
+                .toList();
     }
-
-    return toResponse(entity, sprintsById);
-}
-
 
     /**
      * Crea un nuevo documento en un proyecto
@@ -130,6 +170,22 @@ public class DocumentService {
             dto.setDocumentType(DocumentTypeEnum.DOCUMENT);
         }
 
+        if (dto.getParentDocumentId() != null) {
+            DocumentEntity parent = documentRepository
+                    .findByIdAndDeletedAtIsNull(dto.getParentDocumentId())
+                    .orElseThrow(() -> new IllegalArgumentException("La página padre no existe."));
+
+            if (!projectId.equals(parent.getProjectId())) {
+                throw new IllegalArgumentException("La página padre pertenece a otro proyecto.");
+            }
+
+            if (parent.getDocumentType() != DocumentTypeEnum.DOCUMENT
+                    || dto.getDocumentType() != DocumentTypeEnum.DOCUMENT) {
+                throw new IllegalArgumentException(
+                        "Dentro de una página solo se pueden crear documentos normales.");
+            }
+        }
+
         DocumentEntity newDocument = new DocumentEntity();
 
         newDocument.setProjectId(projectId);
@@ -145,14 +201,26 @@ public class DocumentService {
 
         Optional<DocTemplateEntity> templateFound = Optional.empty();
 
-        if (dto.getDocumentType() == DocumentTypeEnum.MEETING_MINUTES) {
-
-            templateFound = docTemplateRepository.findByCode("PT-AR-01");
-
-        } else if (dto.getTemplateId() != null) {
-
+        if (dto.getTemplateId() != null) {
             templateFound = docTemplateRepository.findById(dto.getTemplateId());
-
+        } else if (dto.getDocumentType() == DocumentTypeEnum.MEETING_MINUTES) {
+            Optional<DocTemplateEntity> parentOpt = docTemplateRepository.findByCode("PT-AR-01");
+            if (parentOpt.isPresent()) {
+                Long parentId = parentOpt.get().getId();
+                List<DocTemplateEntity> children = docTemplateRepository.findByParentTemplateIdOrderByPositionAsc(parentId);
+                if (children != null && !children.isEmpty()) {
+                    templateFound = Optional.of(children.get(children.size() - 1));
+                } else {
+                    List<DocTemplateEntity> legacyChildren = docTemplateRepository.findAll().stream()
+                            .filter(t -> t.getDescription() != null && t.getDescription().trim().toLowerCase().startsWith("plantilla hija de"))
+                            .toList();
+                    if (!legacyChildren.isEmpty()) {
+                        templateFound = Optional.of(legacyChildren.get(legacyChildren.size() - 1));
+                    } else {
+                        templateFound = parentOpt;
+                    }
+                }
+            }
         }
 
         if (templateFound.isPresent()) {
@@ -166,15 +234,78 @@ public class DocumentService {
                 ActivityActionEnum.CREATED, "creó el documento \"" + saved.getTitle() + "\"", createdBy);
 
         if (saved.getParentDocumentId() != null) {
-            documentRepository.findByIdAndDeletedAtIsNull(saved.getParentDocumentId()).ifPresent(parent ->
-                activityLogService.log(parent.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, parent.getId(),
-                    ActivityActionEnum.UPDATED,
-                    "añadió el subdocumento \"" + saved.getTitle() + "\"",
-                    createdBy));
+            documentRepository.findByIdAndDeletedAtIsNull(saved.getParentDocumentId())
+                    .ifPresent(parent -> activityLogService.log(parent.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                            parent.getId(),
+                            ActivityActionEnum.UPDATED,
+                            "añadió el subdocumento \"" + saved.getTitle() + "\"",
+                            createdBy));
         }
+
+        materializarHijosDePlantilla(saved, createdBy);
 
         return toResponse(saved, null);
 
+    }
+
+    private void materializarHijosDePlantilla(DocumentEntity parent, Long createdBy) {
+        String content = parent.getContent();
+        if (content == null || content.isBlank()) {
+            return;
+        }
+
+        Pattern markerPattern = Pattern.compile(
+                "<div(?=[^>]*data-document-card)(?=[^>]*data-template-id=\"(\\d+)\")(?=[^>]*data-titulo=\"([^\"]*)\")[^>]*>");
+        Matcher matcher = markerPattern.matcher(content);
+        StringBuffer updatedContent = new StringBuffer();
+        boolean changed = false;
+
+        while (matcher.find()) {
+            Long templateId = Long.valueOf(matcher.group(1));
+            String childTitle = matcher.group(2);
+
+            if (templateAlreadyExistsInParentChain(parent, templateId)) {
+                matcher.appendReplacement(updatedContent, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+
+            DocumentRequestDTO childRequest = new DocumentRequestDTO();
+            childRequest.setTitle(childTitle == null || childTitle.isBlank() ? "Documento" : childTitle);
+            childRequest.setParentDocumentId(parent.getId());
+            childRequest.setTemplateId(templateId);
+            childRequest.setDocumentType(DocumentTypeEnum.DOCUMENT);
+
+            DocumentResponseDTO child = create(parent.getProjectId(), childRequest, createdBy);
+            String replacement = matcher.group()
+                    .replaceFirst(">", " data-doc-id=\"" + child.getId() + "\">");
+            matcher.appendReplacement(updatedContent, Matcher.quoteReplacement(replacement));
+            changed = true;
+        }
+
+        if (changed) {
+            matcher.appendTail(updatedContent);
+            parent.setContent(updatedContent.toString());
+            documentRepository.save(parent);
+        }
+    }
+
+    private boolean templateAlreadyExistsInParentChain(DocumentEntity document, Long templateId) {
+        Long parentId = document.getParentDocumentId();
+
+        while (parentId != null) {
+            Optional<DocumentEntity> parent = documentRepository.findByIdAndDeletedAtIsNull(parentId);
+            if (parent.isEmpty()) {
+                return false;
+            }
+
+            if (templateId.equals(parent.get().getTemplateId())) {
+                return true;
+            }
+
+            parentId = parent.get().getParentDocumentId();
+        }
+
+        return false;
     }
 
     /**
@@ -210,41 +341,98 @@ public class DocumentService {
 
         if (dto.getContent() != null && !dto.getContent().equals(previousContent)) {
             documentToUpdate.setContent(dto.getContent());
-            appendChange(changes, describirCambioContenido(previousContent, dto.getContent()));
+            ContentChange contentChange = describirCambioContenido(previousContent, dto.getContent());
+            if (!contentChange.description().isEmpty())
+                appendChange(changes, contentChange.description());
         }
 
         if (dto.isCoverImageUrlProvided()
                 && !java.util.Objects.equals(dto.getCoverImageUrl(), documentToUpdate.getCoverImageUrl())) {
+            String previousCoverPublicId = documentToUpdate.getCoverImagePublicId();
+            if (previousCoverPublicId != null) {
+                try {
+                    cloudinary.uploader().destroy(previousCoverPublicId,
+                            ObjectUtils.asMap("resource_type", "image"));
+                } catch (Exception exception) {
+                    log.warn("No se pudo eliminar la portada {} de Cloudinary", previousCoverPublicId, exception);
+                }
+            }
             documentToUpdate.setCoverImageUrl(dto.getCoverImageUrl());
+            documentToUpdate.setCoverImagePublicId(extraerPublicIdCloudinary(dto.getCoverImageUrl()));
             appendChange(changes, dto.getCoverImageUrl() == null
                     ? "eliminó la imagen de portada"
                     : "actualizó la imagen de portada");
         }
 
-        if (dto.isSprintIdProvided()) {
+        if (dto.isSprintIdProvided()
+            && !java.util.Objects.equals(dto.getSprintId(), documentToUpdate.getSprintId())) {
+            Long previousSprintId = documentToUpdate.getSprintId();
             documentToUpdate.setSprintId(dto.getSprintId());
+            appendChange(changes, previousSprintId == null
+                ? "asignó el sprint \"" + dto.getSprintId() + "\""
+                : dto.getSprintId() == null
+                    ? "eliminó el sprint \"" + previousSprintId + "\""
+                    : "cambió el sprint de \"" + previousSprintId + "\" a \""
+                        + dto.getSprintId() + "\"");
         }
 
-        if (dto.isQuarterProvided()) {
+        if (dto.isQuarterProvided()
+            && !java.util.Objects.equals(dto.getQuarter(), documentToUpdate.getQuarter())) {
+            Integer previousQuarter = documentToUpdate.getQuarter();
             documentToUpdate.setQuarter(dto.getQuarter());
+            appendChange(changes, previousQuarter == null
+                ? "asignó el quarter \"" + dto.getQuarter() + "\""
+                : dto.getQuarter() == null
+                    ? "eliminó el quarter \"" + previousQuarter + "\""
+                    : "cambió el quarter de \"" + previousQuarter + "\" a \""
+                        + dto.getQuarter() + "\"");
         }
 
-        if (dto.isMeetingTypeProvided()) {
+        if (dto.isMeetingTypeProvided()
+            && !java.util.Objects.equals(dto.getMeetingType(), documentToUpdate.getMeetingType())) {
+            String previousMeetingType = documentToUpdate.getMeetingType();
             documentToUpdate.setMeetingType(dto.getMeetingType());
+            appendChange(changes, previousMeetingType == null
+                ? "asignó el tipo de reunión \"" + dto.getMeetingType() + "\""
+                : dto.getMeetingType() == null
+                    ? "eliminó el tipo de reunión \"" + previousMeetingType + "\""
+                    : "cambió el tipo de reunión de \"" + previousMeetingType + "\" a \""
+                        + dto.getMeetingType() + "\"");
         }
-
 
         documentToUpdate.setUpdatedBy(updatedBy);
 
         documentRepository.save(documentToUpdate);
 
-        String description = changes.length() == 0 ? "actualizó los datos del documento" : changes.toString();
-        activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
-                documentToUpdate.getId(), ActivityActionEnum.UPDATED,
-            description, updatedBy);
+        documentRealtimeService.publishUpdated(toResponse(documentToUpdate, null));
+
+        if (changes.length() > 0) {
+            String description = changes.toString();
+            if (description.length() > 300) {
+                description = description.substring(0, 297) + "...";
+            }
+            activityLogService.log(documentToUpdate.getProjectId(), ActivityEntityTypeEnum.DOCUMENT,
+                    documentToUpdate.getId(), ActivityActionEnum.UPDATED,
+                    description, updatedBy);
+        }
 
         message.setMessage("Documento actualizado correctamente.");
         return message;
+    }
+
+    private String extraerPublicIdCloudinary(String url) {
+        if (url == null || !url.contains("res.cloudinary.com") || !url.contains("/upload/")) {
+            return null;
+        }
+        String value = url.substring(url.indexOf("/upload/") + "/upload/".length());
+        if (value.startsWith("v")) {
+            int versionEnd = value.indexOf('/');
+            if (versionEnd > 0) {
+                value = value.substring(versionEnd + 1);
+            }
+        }
+        int extensionIndex = value.lastIndexOf('.');
+        return extensionIndex > 0 ? value.substring(0, extensionIndex) : value;
     }
 
     /**
@@ -337,14 +525,21 @@ public class DocumentService {
         newComment.setUserId(userId);
         newComment.setContent(dto.getContent());
         newComment.setParentCommentId(dto.getParentCommentId());
+        newComment.setAnchorId(dto.getAnchorId());
+        newComment.setAnchorText(dto.getAnchorText());
 
         documentCommentRepository.save(newComment);
+        message.setComment(toCommentResponse(
+            newComment,
+            usersRepository.findById(userId).orElse(null)));
+
+        documentRealtimeService.publishCommentAdded(document.getProjectId(), message.getComment());
 
         activityLogService.log(document.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, documentId,
-            ActivityActionEnum.UPDATED,
-            (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")
-                + " en el documento \"" + document.getTitle() + "\"",
-            userId);
+                ActivityActionEnum.UPDATED,
+                (dto.getParentCommentId() == null ? "añadió un comentario" : "respondió un comentario")
+                        + " en el documento \"" + document.getTitle() + "\"",
+                userId);
 
         if (dto.getParentCommentId() != null) {
 
@@ -389,10 +584,9 @@ public class DocumentService {
                         title);
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-       for (DocumentEntity documentEntity : documentList) {
-    response.add(toResponse(documentEntity, null));
-}
-
+        for (DocumentEntity documentEntity : documentList) {
+            response.add(toResponse(documentEntity, null));
+        }
 
         return response;
     }
@@ -403,41 +597,42 @@ public class DocumentService {
      * @param documentEntity entidad a convertir
      * @return dto con la información del documento
      */
-  private DocumentResponseDTO toResponse(
-        DocumentEntity documentEntity,
-        Map<Long, SprintEntity> sprintsById) {
+    private DocumentResponseDTO toResponse(
+            DocumentEntity documentEntity,
+            Map<Long, SprintEntity> sprintsById) {
 
-    DocumentResponseDTO response = new DocumentResponseDTO();
+        DocumentResponseDTO response = new DocumentResponseDTO();
 
-    response.setId(documentEntity.getId());
-    response.setProjectId(documentEntity.getProjectId());
-    response.setTemplateId(documentEntity.getTemplateId());
-    response.setTitle(documentEntity.getTitle());
-    response.setContent(documentEntity.getContent());
-    response.setCoverImageUrl(documentEntity.getCoverImageUrl());
-    response.setStatus(documentEntity.getStatus());
-    response.setDocumentType(documentEntity.getDocumentType());
-    response.setCreatedBy(documentEntity.getCreatedBy());
-    response.setUpdatedBy(documentEntity.getUpdatedBy());
-    response.setParentDocumentId(documentEntity.getParentDocumentId());
-    response.setSortOrder(documentEntity.getSortOrder());
-    response.setCreatedAt(documentEntity.getCreatedAt());
-    response.setUpdatedAt(documentEntity.getUpdatedAt());
-    response.setSprintId(documentEntity.getSprintId());
-    response.setQuarter(documentEntity.getQuarter());
-    response.setMeetingType(documentEntity.getMeetingType());
+        response.setId(documentEntity.getId());
+        response.setProjectId(documentEntity.getProjectId());
+        response.setTemplateId(documentEntity.getTemplateId());
+        response.setTitle(documentEntity.getTitle());
+        response.setContent(documentEntity.getContent());
+        response.setCoverImageUrl(documentEntity.getCoverImageUrl());
+        response.setStatus(documentEntity.getStatus());
+        response.setDocumentType(documentEntity.getDocumentType());
+        response.setCreatedBy(documentEntity.getCreatedBy());
+        response.setUpdatedBy(documentEntity.getUpdatedBy());
+        response.setParentDocumentId(documentEntity.getParentDocumentId());
+        response.setSortOrder(documentEntity.getSortOrder());
+        response.setCreatedAt(documentEntity.getCreatedAt());
+        response.setUpdatedAt(documentEntity.getUpdatedAt());
+        response.setSprintId(documentEntity.getSprintId());
+        response.setQuarter(documentEntity.getQuarter());
+        response.setMeetingType(documentEntity.getMeetingType());
 
-    if (documentEntity.getSprintId() != null && sprintsById != null) {
-        SprintEntity sprint = sprintsById.get(documentEntity.getSprintId());
+        if (documentEntity.getSprintId() != null) {
+            SprintEntity sprint = sprintsById != null
+                    ? sprintsById.get(documentEntity.getSprintId())
+                    : sprintRepository.findById(documentEntity.getSprintId()).orElse(null);
 
-        if (sprint != null) {
-            response.setSprintName(sprint.getName());
+            if (sprint != null) {
+                response.setSprintName(sprint.getName());
+            }
         }
+
+        return response;
     }
-
-    return response;
-}
-
 
     /**
      * Convierte una entidad de comentario en un dto de respuesta
@@ -455,6 +650,8 @@ public class DocumentService {
         response.setContent(commentEntity.getContent());
         response.setCreatedAt(commentEntity.getCreatedAt());
         response.setParentCommentId(commentEntity.getParentCommentId());
+        response.setAnchorId(commentEntity.getAnchorId());
+        response.setAnchorText(commentEntity.getAnchorText());
 
         if (user != null) {
             response.setUserFullName(user.getFirstName() + " " + user.getLastName());
@@ -493,29 +690,42 @@ public class DocumentService {
      * @param dto        estado nuevo
      * @return documento actualizado, null si no existe
      */
-   @Transactional
-public DocumentResponseDTO updateStatus(
-        Long documentId,
-    DocumentStatusUpdateDTO dto,
-    Long updatedBy) {
+    @Transactional
+    public DocumentResponseDTO updateStatus(
+            Long documentId,
+            DocumentStatusUpdateDTO dto,
+            Long updatedBy) {
 
-    DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
+        if (dto == null || dto.getStatus() == null
+            || (dto.getStatus() != com.syncra.gestion_proyectos.enums.DocumentStatusEnum.DRAFT
+                && dto.getStatus() != com.syncra.gestion_proyectos.enums.DocumentStatusEnum.APPROVED)) {
+            throw new IllegalArgumentException("El estado del documento debe ser DRAFT o APPROVED.");
+        }
 
-    if (entity == null) {
-        return null;
-    }
+        DocumentEntity entity = documentRepository.findById(documentId).orElse(null);
 
-    entity.setStatus(dto.getStatus());
+        if (entity == null) {
+            return null;
+        }
 
-    DocumentEntity saved = documentRepository.save(entity);
+        entity.setStatus(dto.getStatus());
+
+        DocumentEntity saved = documentRepository.save(entity);
 
         activityLogService.log(saved.getProjectId(), ActivityEntityTypeEnum.DOCUMENT, saved.getId(),
-            ActivityActionEnum.UPDATED,
-            "cambió el estado del documento a " + dto.getStatus().name(),
-            updatedBy);
+                ActivityActionEnum.UPDATED,
+                "cambió el estado del documento a " + dto.getStatus().name(),
+                updatedBy);
 
-    return toResponse(saved, null);
-}
+        DocumentResponseDTO response = toResponse(saved, null);
+        documentRealtimeService.publishUpdated(response);
+
+        if (dto.getStatus() == com.syncra.gestion_proyectos.enums.DocumentStatusEnum.APPROVED) {
+            projectService.moveToReviewIfAllDocumentsApproved(saved.getProjectId());
+        }
+
+        return response;
+    }
 
     private void appendChange(StringBuilder changes, String change) {
         if (changes.length() > 0) {
@@ -524,7 +734,7 @@ public DocumentResponseDTO updateStatus(
         changes.append(change);
     }
 
-    private String describirCambioContenido(String previousContent, String currentContent) {
+    private ContentChange describirCambioContenido(String previousContent, String currentContent) {
         String previous = previousContent == null ? "" : previousContent;
         String current = currentContent == null ? "" : currentContent;
         int previousImages = countOccurrences(previous, "<img");
@@ -537,14 +747,22 @@ public DocumentResponseDTO updateStatus(
         int currentFiles = countOccurrences(current, "data-file-card");
         List<String> changes = new ArrayList<>();
 
-        if (currentImages > previousImages) changes.add("añadió " + (currentImages - previousImages) + " imagen(es)");
-        if (currentImages < previousImages) changes.add("eliminó " + (previousImages - currentImages) + " imagen(es)");
-        if (currentTables > previousTables) changes.add("añadió " + (currentTables - previousTables) + " tabla(s)");
-        if (currentTables < previousTables) changes.add("eliminó " + (previousTables - currentTables) + " tabla(s)");
-        if (currentDocuments > previousDocuments) changes.add("añadió " + (currentDocuments - previousDocuments) + " subdocumento(s) enlazado(s)");
-        if (currentDocuments < previousDocuments) changes.add("eliminó " + (previousDocuments - currentDocuments) + " subdocumento(s) enlazado(s)");
-        if (currentFiles > previousFiles) changes.add("añadió " + (currentFiles - previousFiles) + " archivo(s) adjunto(s)");
-        if (currentFiles < previousFiles) changes.add("eliminó " + (previousFiles - currentFiles) + " archivo(s) adjunto(s)");
+        if (currentImages > previousImages)
+            changes.add("añadió " + (currentImages - previousImages) + " imagen(es)");
+        if (currentImages < previousImages)
+            changes.add("eliminó " + (previousImages - currentImages) + " imagen(es)");
+        if (currentTables > previousTables)
+            changes.add("añadió " + (currentTables - previousTables) + " tabla(s)");
+        if (currentTables < previousTables)
+            changes.add("eliminó " + (previousTables - currentTables) + " tabla(s)");
+        if (currentDocuments > previousDocuments)
+            changes.add("añadió " + (currentDocuments - previousDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentDocuments < previousDocuments)
+            changes.add("eliminó " + (previousDocuments - currentDocuments) + " subdocumento(s) enlazado(s)");
+        if (currentFiles > previousFiles)
+            changes.add("añadió " + (currentFiles - previousFiles) + " archivo(s) adjunto(s)");
+        if (currentFiles < previousFiles)
+            changes.add("eliminó " + (previousFiles - currentFiles) + " archivo(s) adjunto(s)");
         agregarNombres(changes, previous, current, "data-titulo=", "página(s)");
         agregarNombres(changes, previous, current, "data-file-name=", "archivo(s)");
 
@@ -559,14 +777,110 @@ public DocumentResponseDTO updateStatus(
         registrarDiferencia(changes, previous, current, "<em", "texto(s) en cursiva", "texto(s) en cursiva");
         registrarDiferencia(changes, previous, current, "<u", "texto(s) subrayado(s)", "texto(s) subrayado(s)");
         registrarDiferencia(changes, previous, current, "<s", "texto(s) tachado(s)", "texto(s) tachado(s)");
-        registrarDiferencia(changes, previous, current, "data-text-align=", "alineación(es) de texto", "alineación(es) de texto");
-        registrarDiferencia(changes, previous, current, "background-color", "resaltado(s) de texto", "resaltado(s) de texto");
+        registrarDiferencia(changes, previous, current, "data-text-align=", "alineación(es) de texto",
+                "alineación(es) de texto");
+        registrarDiferencia(changes, previous, current, "background-color", "resaltado(s) de texto",
+                "resaltado(s) de texto");
         registrarDiferencia(changes, previous, current, "color:", "color(es) de texto", "color(es) de texto");
 
-        String previousText = extraerTexto(previous);
-        String currentText = extraerTexto(current);
-        if (!previousText.equals(currentText)) changes.add("modificó el texto y formato del contenido");
-        return changes.isEmpty() ? "modificó el contenido del documento" : String.join(", ", changes);
+        agregarCambiosDeTablas(changes, previous, current);
+        String previousText = extraerTextoSinTablas(previous);
+        String currentText = extraerTextoSinTablas(current);
+        agregarDiffDePalabras(changes, previousText, currentText);
+        return new ContentChange(changes.isEmpty() ? "" : String.join(", ", changes));
+    }
+
+    private String extraerTextoSinTablas(String html) {
+        Document parsed = Jsoup.parse(html);
+        parsed.select("table").remove();
+        return extraerTexto(parsed.body().html());
+    }
+
+    private void agregarCambiosDeTablas(List<String> changes, String previous, String current) {
+        List<String> previousCells = extraerCeldasDeTabla(previous);
+        List<String> currentCells = extraerCeldasDeTabla(current);
+        int commonCells = Math.min(previousCells.size(), currentCells.size());
+        for (int index = 0; index < commonCells; index++) {
+            String before = previousCells.get(index);
+            String after = currentCells.get(index);
+            if (!before.equals(after)) {
+                changes.add("cambió el contenido de una celda de tabla de \""
+                        + fragmentoCorto(before) + "\" a \"" + fragmentoCorto(after) + "\"");
+            }
+        }
+    }
+
+    private List<String> extraerCeldasDeTabla(String html) {
+        List<String> cells = new ArrayList<>();
+        for (Element table : Jsoup.parse(html).select("table")) {
+            for (Element cell : table.select("th, td")) {
+                cells.add(extraerTexto(cell.html()));
+            }
+        }
+        return cells;
+    }
+
+    private void agregarDiffDePalabras(List<String> changes, String previous, String current) {
+        String[] before = previous.isEmpty() ? new String[0] : previous.split("\\s+");
+        String[] after = current.isEmpty() ? new String[0] : current.split("\\s+");
+        int[][] lcs = new int[before.length + 1][after.length + 1];
+        for (int i = before.length - 1; i >= 0; i--) {
+            for (int j = after.length - 1; j >= 0; j--) {
+                lcs[i][j] = before[i].equals(after[j]) ? lcs[i + 1][j + 1] + 1
+                        : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+            }
+        }
+
+        List<WordDiff> diffs = new ArrayList<>();
+        int i = 0;
+        int j = 0;
+        while (i < before.length || j < after.length) {
+            if (i < before.length && j < after.length && before[i].equals(after[j])) {
+                diffs.add(new WordDiff('=', before[i++]));
+                j++;
+            } else if (i < before.length && (j == after.length || lcs[i + 1][j] >= lcs[i][j + 1])) {
+                diffs.add(new WordDiff('-', before[i++]));
+            } else {
+                diffs.add(new WordDiff('+', after[j++]));
+            }
+        }
+
+        int index = 0;
+        while (index < diffs.size()) {
+            if (diffs.get(index).type() == '=') {
+                index++;
+                continue;
+            }
+            List<String> removed = new ArrayList<>();
+            List<String> added = new ArrayList<>();
+            while (index < diffs.size() && diffs.get(index).type() != '=') {
+                WordDiff diff = diffs.get(index++);
+                if (diff.type() == '-')
+                    removed.add(diff.word());
+                else
+                    added.add(diff.word());
+            }
+            String beforeText = fragmentoCorto(String.join(" ", removed));
+            String afterText = fragmentoCorto(String.join(" ", added));
+            if (!removed.isEmpty() && !added.isEmpty()) {
+                changes.add("cambió \"" + beforeText + "\" por \"" + afterText + "\"");
+            } else if (!removed.isEmpty()) {
+                changes.add("eliminó \"" + beforeText + "\"");
+            } else {
+                changes.add("agregó \"" + afterText + "\"");
+            }
+        }
+    }
+
+    private String fragmentoCorto(String text) {
+        String normalized = text.replace('"', '\'').replaceAll("\\s+", " ").trim();
+        return normalized.length() > 60 ? normalized.substring(0, 57) + "..." : normalized;
+    }
+
+    private record ContentChange(String description) {
+    }
+
+    private record WordDiff(char type, String word) {
     }
 
     private String extraerTexto(String html) {
@@ -580,8 +894,10 @@ public DocumentResponseDTO updateStatus(
             String token, String addedLabel, String removedLabel) {
         int before = countOccurrences(previous, token);
         int after = countOccurrences(current, token);
-        if (after > before) changes.add("añadió " + (after - before) + " " + addedLabel);
-        if (after < before) changes.add("eliminó " + (before - after) + " " + removedLabel);
+        if (after > before)
+            changes.add("añadió " + (after - before) + " " + addedLabel);
+        if (after < before)
+            changes.add("eliminó " + (before - after) + " " + removedLabel);
     }
 
     private void agregarNombres(List<String> changes, String previous, String current,
@@ -592,8 +908,10 @@ public DocumentResponseDTO updateStatus(
         added.removeAll(before);
         List<String> removed = new ArrayList<>(before);
         removed.removeAll(after);
-        if (!added.isEmpty()) changes.add("añadió " + label + " " + String.join(", ", added));
-        if (!removed.isEmpty()) changes.add("eliminó " + label + " " + String.join(", ", removed));
+        if (!added.isEmpty())
+            changes.add("añadió " + label + " " + String.join(", ", added));
+        if (!removed.isEmpty())
+            changes.add("eliminó " + label + " " + String.join(", ", removed));
     }
 
     private List<String> extraerValores(String html, String attribute) {
@@ -603,9 +921,11 @@ public DocumentResponseDTO updateStatus(
         while ((index = html.indexOf(search, index)) >= 0) {
             int start = index + search.length();
             int end = html.indexOf('"', start);
-            if (end < 0) break;
+            if (end < 0)
+                break;
             String value = html.substring(start, end).trim();
-            if (!value.isEmpty() && !values.contains(value)) values.add(value);
+            if (!value.isEmpty() && !values.contains(value))
+                values.add(value);
             index = end + 1;
         }
         return values;
@@ -621,7 +941,6 @@ public DocumentResponseDTO updateStatus(
         return count;
     }
 
-
     /**
      * Genera el PDF de un documento a partir de su contenido HTML
      *
@@ -635,6 +954,11 @@ public DocumentResponseDTO updateStatus(
             return null;
 
         DocumentEntity document = documentFound.get();
+
+        if (document.getContent() == null || document.getContent().isBlank()) {
+            String emptyHtml = "<p>No hay contenido para exportar.</p>";
+            return generatePdfFromHtml(document.getTitle(), emptyHtml);
+        }
 
         String contenido = document.getContent()
                 .replaceAll("<img([^>]*[^/])>", "<img$1/>")
@@ -654,20 +978,57 @@ public DocumentResponseDTO updateStatus(
                 .replace("&nbsp;", " ");
 
         contenido = embedImagenesComoBase64(contenido);
+        contenido = normalizarContenidoParaPdf(contenido);
 
-        contenido = contenido.replaceAll("<col\\b([^>]*)>", "<col$1/>");
+        return generatePdfFromHtml(document.getTitle(), contenido);
+    }
+
+    private byte[] generatePdfFromHtml(String title, String contentHtml) {
+        try {
+            return renderPdf(title, contentHtml);
+        } catch (Exception exception) {
+            System.err.println("No se pudo renderizar el contenido enriquecido del PDF: " + exception.getMessage());
+            try {
+                return renderPdf(title, textoPlanoParaPdf(contentHtml));
+            } catch (Exception fallbackException) {
+                throw new IllegalStateException("No se pudo generar el PDF del documento", fallbackException);
+            }
+        }
+    }
+
+    private byte[] renderPdf(String title, String contentHtml) throws Exception {
+        String safeTitle = escapeHtml(removerEmojis(title == null ? "Documento" : title));
+        String safeContent = contentHtml == null ? "" : contentHtml;
 
         String html = """
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="UTF-8" />
-                    <style>
-                        body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; }
-                        h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; }
+                                        <style>
+                        @page {
+                            size: A4;
+                            margin: 2.2cm 2cm 2.5cm 2cm;
+                            @bottom-center {
+                                content: "Página " counter(page) " de " counter(pages);
+                                font-family: 'Helvetica', sans-serif;
+                                font-size: 9px;
+                                color: #9ca3af;
+                            }
+                        }
+                        body { font-family: 'Helvetica', sans-serif; font-size: 12px; color: #222; line-height: 1.5; }
+                        h1 { font-size: 20px; border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-bottom: 16px; }
+                        h1, h2, h3, h4 { page-break-after: avoid; }
                         img { max-width: 100%%; height: auto; }
-                        table { border-collapse: collapse; width: 100%%; }
-                        td, th { border: 1px solid #ccc; padding: 4px; }
+                        table { border-collapse: collapse; table-layout: fixed; width: 100%%; margin: 8px 0; -fs-table-paginate: paginate; }
+                        thead { display: table-header-group; }
+                        tr { page-break-inside: avoid; }
+                        td, th { border: 1px solid #ccc; padding: 6px; height: 24px; word-wrap: break-word; overflow-wrap: break-word; vertical-align: top; }
+                        td p, th p { margin: 0; }
+                        blockquote { border-left: 3px solid #94a3b8; margin: 10px 0; padding: 4px 12px; color: #475569; page-break-inside: avoid; }
+                        pre { white-space: pre-wrap; font-family: monospace; background: #f3f4f6; padding: 8px; page-break-inside: avoid; }
+                        a { color: #1d4ed8; text-decoration: underline; }
+                        ul, ol { margin-top: 6px; margin-bottom: 6px; }
                     </style>
                 </head>
                 <body>
@@ -675,17 +1036,307 @@ public DocumentResponseDTO updateStatus(
                     %s
                 </body>
                 </html>
-                """.formatted(document.getTitle(), contenido);
+                """
+                .formatted(safeTitle, safeContent);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PdfRendererBuilder builder = new PdfRendererBuilder();
         builder.useFastMode();
-        System.out.println(html);
         builder.withHtmlContent(html, null);
         builder.toStream(outputStream);
         builder.run();
 
         return outputStream.toByteArray();
+    }
+
+    private String textoPlanoParaPdf(String contentHtml) {
+        String text = contentHtml == null ? "" : Jsoup.parse(contentHtml).text().trim();
+        text = removerEmojis(text);
+        if (text.isBlank()) {
+            text = "No hay contenido para exportar.";
+        }
+        return "<p>" + escapeHtml(text).replace("\n", "<br/>") + "</p>";
+    }
+
+    private String escapeHtml(String value) {
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    /**
+     * Rango de puntos de código Unicode que cubre emojis, banderas, pictogramas
+     * y modificadores relacionados (tono de piel, selector de variación, ZWJ).
+     * Helvetica (fuente usada por openhtmltopdf) no incluye estos glifos, por lo
+     * que sin este filtro se renderizan como "#" (glifo .notdef).
+     */
+    private static final Pattern EMOJI_PATTERN = Pattern.compile(
+            "[\\x{1F1E6}-\\x{1F1FF}" // banderas (indicadores regionales)
+                    + "\\x{1F300}-\\x{1FAFF}" // símbolos misc, transporte, pictogramas suplementarios
+                    + "\\x{2600}-\\x{27BF}" // símbolos misc y dingbats
+                    + "\\x{2B00}-\\x{2BFF}" // flechas y símbolos misc adicionales
+                    + "\\x{2300}-\\x{23FF}" // símbolos técnicos misc (reloj de arena, etc.)
+                    + "\\x{FE0F}" // selector de variación (emoji vs texto)
+                    + "\\x{200D}" // zero-width joiner (emojis compuestos)
+                    + "\\x{1F900}-\\x{1F9FF}" // símbolos suplementarios y pictogramas
+                    + "\\x{3030}\\x{303D}\\x{3297}\\x{3299}]");
+
+    private String removerEmojis(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        return EMOJI_PATTERN.matcher(text).replaceAll("");
+    }
+
+    private String normalizarContenidoParaPdf(String content) {
+        String sinEmojis = removerEmojis(content);
+        Document source = Jsoup.parseBodyFragment(sinEmojis == null ? "" : sinEmojis);
+
+        for (Element fileCard : source.select("div[data-file-card]")) {
+            String url = fileCard.attr("data-file-url");
+            String name = fileCard.attr("data-file-name");
+            Element paragraph = new Element(Tag.valueOf("p"), "");
+            Element link = paragraph.appendElement("a").text("Archivo: " + (name.isBlank() ? "Adjunto" : name));
+            if (!url.isBlank()) {
+                link.attr("href", url);
+            }
+            fileCard.replaceWith(paragraph);
+        }
+
+        Safelist safelist = Safelist.none()
+                .addTags("p", "br", "strong", "b", "em", "i", "u", "s", "h1", "h2", "h3", "h4",
+                    "blockquote", "ul", "ol", "li", "pre", "code", "table", "colgroup", "col", "thead",
+                    "tbody", "tfoot", "tr", "th", "td", "a", "img", "hr", "span")
+                .addAttributes("a", "href", "title")
+                .addAttributes("img", "src", "alt", "width", "height")
+                .addAttributes("colgroup", "span", "width")
+                .addAttributes("col", "span", "width")
+                .addAttributes("td", "colspan", "rowspan")
+                .addAttributes("th", "colspan", "rowspan")
+                .addAttributes(":all", "style")
+                .addProtocols("a", "href", "http", "https", "mailto")
+                .addProtocols("img", "src", "http", "https", "data");
+
+        Document parsed = Jsoup.parseBodyFragment(Jsoup.clean(source.body().html(), "", safelist));
+        for (Element element : parsed.body().getAllElements()) {
+            element.removeAttr("class");
+            element.removeAttr("id");
+            String styleValue = element.attr("style");
+            if (!styleValue.isBlank()) {
+                String safeStyle = sanitizeStyle(styleValue);
+                if (safeStyle.isBlank()) {
+                    element.removeAttr("style");
+                } else {
+                    element.attr("style", safeStyle);
+                }
+            }
+            if (element.is("img")) {
+                String src = element.attr("src").toLowerCase(java.util.Locale.ROOT);
+                if (src.startsWith("data:image/svg") || src.endsWith(".svg")) {
+                    element.remove();
+                }
+            }
+        }
+        normalizarTablasParaPdf(parsed);
+        parsed.outputSettings().syntax(Document.OutputSettings.Syntax.xml)
+                .escapeMode(Entities.EscapeMode.xhtml)
+                .charset(java.nio.charset.StandardCharsets.UTF_8)
+                .prettyPrint(false);
+        return parsed.body().html();
+    }
+
+    private void normalizarTablasParaPdf(Document parsed) {
+        for (Element table : parsed.select("table")) {
+            Element firstRow = primeraFilaDeTabla(table);
+            if (firstRow == null) {
+                continue;
+            }
+
+            for (Element cell : table.select("td, th")) {
+                if (cell.text().trim().isEmpty() && cell.select("img").isEmpty()) {
+                    cell.append("&nbsp;");
+                }
+                cell.attr("style", agregarPropiedadCss(cell.attr("style"), "height", "24px"));
+            }
+
+            Element colgroup = table.select("> colgroup").first();
+            List<Element> columns = colgroup == null
+                    ? List.of()
+                    : colgroup.select("> col");
+
+            if (tieneAnchosDeColumna(columns)) {
+                aplicarAnchosDeColgroup(columns);
+            } else {
+                int columnCount = contarColumnas(firstRow);
+                if (columnCount > 0) {
+                    double widthPerColumn = 100d / columnCount;
+                    for (Element cell : firstRow.select("> th, > td")) {
+                        int colspan = parsePositiveInt(cell.attr("colspan"), 1);
+                        cell.attr("style", agregarPropiedadCss(
+                                cell.attr("style"),
+                                "width",
+                                String.format(java.util.Locale.ROOT, "%.4f%%", widthPerColumn * colspan)));
+                    }
+                }
+            }
+        }
+    }
+
+    private Element primeraFilaDeTabla(Element table) {
+        for (Element child : table.children()) {
+            if (child.is("tr")) {
+                return child;
+            }
+            if (child.is("thead, tbody, tfoot")) {
+                Element row = child.select("> tr").first();
+                if (row != null) {
+                    return row;
+                }
+            }
+        }
+        return null;
+    }
+
+    private int contarColumnas(Element row) {
+        int count = 0;
+        for (Element cell : row.select("> th, > td")) {
+            count += parsePositiveInt(cell.attr("colspan"), 1);
+        }
+        return count;
+    }
+
+    private boolean tieneAnchosDeColumna(List<Element> columns) {
+        return columns.stream().anyMatch(column -> {
+            String width = column.attr("width");
+            return !width.isBlank() || !extraerPropiedadCss(column.attr("style"), "width").isBlank();
+        });
+    }
+
+    private void aplicarAnchosDeColgroup(List<Element> columns) {
+        List<Double> widths = new ArrayList<>();
+        int unspecified = 0;
+        double specifiedTotal = 0;
+        boolean containsPixelWidth = false;
+
+        for (Element column : columns) {
+            String rawWidth = !column.attr("width").isBlank()
+                    ? column.attr("width")
+                    : extraerPropiedadCss(column.attr("style"), "width");
+            Double width = parseWidth(rawWidth);
+            widths.add(width);
+            containsPixelWidth |= rawWidth.trim().toLowerCase(java.util.Locale.ROOT).endsWith("px");
+            if (width == null) {
+                unspecified++;
+            } else {
+                specifiedTotal += width;
+            }
+        }
+
+        if (specifiedTotal <= 0 || (!containsPixelWidth && specifiedTotal > 100)) {
+            return;
+        }
+
+        double remaining = containsPixelWidth
+                ? 0
+                : Math.max(0, 100 - specifiedTotal);
+        double fallbackWidth = unspecified == 0 ? 0 : remaining / unspecified;
+        for (int index = 0; index < columns.size(); index++) {
+            double width = widths.get(index) == null
+                    ? fallbackWidth
+                    : containsPixelWidth
+                        ? widths.get(index) / specifiedTotal * 100
+                        : widths.get(index);
+            columns.get(index).attr("style", agregarPropiedadCss(
+                    columns.get(index).attr("style"),
+                    "width",
+                    String.format(java.util.Locale.ROOT, "%.4f%%", width)));
+        }
+    }
+
+    private Double parseWidth(String rawWidth) {
+        if (rawWidth == null || rawWidth.isBlank()) {
+            return null;
+        }
+
+        String normalized = rawWidth.trim().toLowerCase(java.util.Locale.ROOT);
+        try {
+            if (normalized.endsWith("%")) {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 1));
+            }
+            if (normalized.endsWith("px")) {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 2));
+            }
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private int parsePositiveInt(String value, int fallback) {
+        try {
+            int parsed = Integer.parseInt(value);
+            return parsed > 0 ? parsed : fallback;
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private String extraerPropiedadCss(String style, String property) {
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length == 2 && parts[0].trim().equalsIgnoreCase(property)) {
+                return parts[1].trim();
+            }
+        }
+        return "";
+    }
+
+    private String agregarPropiedadCss(String style, String property, String value) {
+        StringBuilder result = new StringBuilder();
+        boolean replaced = false;
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            if (parts[0].trim().equalsIgnoreCase(property)) {
+                if (!replaced) {
+                    result.append(property).append(": ").append(value).append("; ");
+                    replaced = true;
+                }
+            } else {
+                result.append(parts[0].trim()).append(": ").append(parts[1].trim()).append("; ");
+            }
+        }
+        if (!replaced) {
+            result.append(property).append(": ").append(value).append("; ");
+        }
+        return result.toString().trim();
+    }
+
+    private static final java.util.Set<String> ALLOWED_PDF_STYLE_PROPERTIES = java.util.Set.of(
+            "color", "background-color", "background", "font-weight", "font-style",
+            "text-decoration", "text-align", "border-color", "width", "height", "vertical-align");
+
+    private String sanitizeStyle(String style) {
+        StringBuilder result = new StringBuilder();
+        for (String declaration : style.split(";")) {
+            String[] parts = declaration.split(":", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            String property = parts[0].trim().toLowerCase(java.util.Locale.ROOT);
+            String value = parts[1].trim();
+            String lowerValue = value.toLowerCase(java.util.Locale.ROOT);
+            if (ALLOWED_PDF_STYLE_PROPERTIES.contains(property)
+                    && !lowerValue.contains("url(")
+                    && !lowerValue.contains("expression")) {
+                result.append(property).append(": ").append(value).append("; ");
+            }
+        }
+        return result.toString().trim();
     }
 
     private String embedImagenesComoBase64(String content) {
@@ -756,53 +1407,97 @@ public DocumentResponseDTO updateStatus(
 
         List<DocumentResponseDTO> response = new ArrayList<>();
 
-       for (DocumentEntity child : children) {
-    response.add(toResponse(child, null));
-}
-
+        for (DocumentEntity child : children) {
+            response.add(toResponse(child, null));
+        }
 
         return response;
     }
 
-   public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
+    public List<DocumentResponseDTO> getMeetingMinutes(Long projectId) {
 
-    List<DocumentEntity> minutes = documentRepository
-            .findByProjectIdAndDocumentTypeAndDeletedAtIsNull(
-                    projectId,
-                    DocumentTypeEnum.MEETING_MINUTES);
+        List<DocumentEntity> minutes = documentRepository
+            .findByProjectIdAndDocumentTypeAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
+                        projectId,
+                        DocumentTypeEnum.MEETING_MINUTES);
 
-    List<Long> sprintIds = minutes.stream()
+        List<Long> sprintIds = minutes.stream()
+                .map(DocumentEntity::getSprintId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
+                .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
+
+        List<DocumentResponseDTO> response = new ArrayList<>();
+
+        for (DocumentEntity entity : minutes) {
+            response.add(toResponse(entity, sprintsById));
+        }
+
+        return response;
+    }
+
+    public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
+
+        List<DocumentEntity> minutes = documentRepository
+            .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNullOrderByCreatedAtDescIdDesc(
+                        projectId,
+                        DocumentTypeEnum.MEETING_MINUTES,
+                        title);
+
+        List<Long> sprintIds = minutes.stream()
             .map(DocumentEntity::getSprintId)
             .filter(java.util.Objects::nonNull)
             .distinct()
             .toList();
 
-    Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
+        Map<Long, SprintEntity> sprintsById = sprintRepository.findAllById(sprintIds).stream()
             .collect(java.util.stream.Collectors.toMap(SprintEntity::getId, s -> s));
-
-    List<DocumentResponseDTO> response = new ArrayList<>();
-
-    for (DocumentEntity entity : minutes) {
-        response.add(toResponse(entity, sprintsById));
-    }
-
-    return response;
-}
-
-    public List<DocumentResponseDTO> searchMeetingMinutes(Long projectId, String title) {
-
-        List<DocumentEntity> minutes = documentRepository
-                .findByProjectIdAndDocumentTypeAndTitleContainingIgnoreCaseAndDeletedAtIsNull(
-                        projectId,
-                        DocumentTypeEnum.MEETING_MINUTES,
-                        title);
 
         List<DocumentResponseDTO> response = new ArrayList<>();
 
         for (DocumentEntity entity : minutes) {
-    response.add(toResponse(entity, null));
-}
+            response.add(toResponse(entity, sprintsById));
+        }
 
         return response;
+    }
+
+    public List<SectionMatchResponseDTO> findSectionMatches(Long projectId, List<String> sectionKeys) {
+
+        List<SectionMatchResponseDTO> matches = new ArrayList<>();
+
+        if (sectionKeys == null || sectionKeys.isEmpty()) {
+            return matches;
+        }
+
+        List<DocumentEntity> documentos = documentRepository
+                .findByProjectIdAndDeletedAtIsNullOrderByUpdatedAtDesc(projectId);
+
+        for (String sectionKey : sectionKeys) {
+
+            for (DocumentEntity documento : documentos) {
+
+                SectionContentUtil.ExtractedSection encontrada = SectionContentUtil
+                        .extractSection(documento.getContent(), sectionKey);
+
+                if (encontrada != null) {
+                    SectionMatchResponseDTO match = new SectionMatchResponseDTO();
+
+                    match.setSectionKey(sectionKey);
+                    match.setSectionTitle(encontrada.getTitle());
+                    match.setSourceDocumentId(documento.getId());
+                    match.setSourceDocumentTitle(documento.getTitle());
+                    match.setContent(encontrada.getContent());
+
+                    matches.add(match);
+                    break;
+                }
+            }
+        }
+
+        return matches;
     }
 }

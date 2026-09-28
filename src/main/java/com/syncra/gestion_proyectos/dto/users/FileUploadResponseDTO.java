@@ -2,5 +2,5 @@ package com.syncra.gestion_proyectos.dto.users;
 
 
 
-public record FileUploadResponseDTO(String url) {
+public record FileUploadResponseDTO(String url, String publicId) {
 }

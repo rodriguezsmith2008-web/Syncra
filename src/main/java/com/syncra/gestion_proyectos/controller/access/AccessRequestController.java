@@ -2,6 +2,7 @@ package com.syncra.gestion_proyectos.controller.access;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -36,8 +37,18 @@ public class AccessRequestController {
     public ResponseEntity<AccessMessageDTO<String>> createRequest(
             // toma el json y lo envia al RequestDTO
             @RequestBody AccessRequestDTO request) {
-        // muestra la respuesta con HTTP 200
-        return ResponseEntity.ok(accessRequestService.createRequest(request));
+        AccessMessageDTO<String> response = accessRequestService.createRequest(request);
+        String message = response.getMessage();
+
+        if ("Solicitud enviada correctamente".equals(message)) {
+            return ResponseEntity.ok(response);
+        }
+
+        if ("Correo inválido.".equals(message) || "Documento inválido.".equals(message)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
+        return ResponseEntity.badRequest().body(response);
     }
 
     // Trae las solicitudes pendientes
