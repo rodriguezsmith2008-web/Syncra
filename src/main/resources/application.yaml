@@ -1,3 +1,71 @@
 spring:
   application:
     name: gestion_proyectos
+
+  config:
+    import: optional:file:.env[.properties]
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+logging:
+  level:
+    "[org.springframework.web]": DEBUG
+    "[org.hibernate.SQL]": DEBUG
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": DEBUG
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1/
+
+security:
+  jwt:
+    secret-key: ${JWT_SECRET}
+    token-expiration: ${JWT_EXPIRATION:1200000}
+
+cloudinary:
+  url: ${CLOUDINARY_URL}
+
+jackson:
+    time-zone: America/Bogota
+
+ai:
+  service:
+    url: ${AI_SERVICE_URL}
+    internal-api-key: ${AI_INTERNAL_API_KEY}

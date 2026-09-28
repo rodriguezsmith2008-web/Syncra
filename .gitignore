@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment variables ###
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+.idea/
+.vscode/
+.env

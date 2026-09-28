@@ -1,0 +1,235 @@
+package com.syncra.gestion_proyectos.service.access;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.syncra.gestion_proyectos.dto.access.AccessMessageDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessRequestDTO;
+import com.syncra.gestion_proyectos.dto.access.AccessResponseDTO;
+import com.syncra.gestion_proyectos.entity.access.AccessRequestEntity;
+import com.syncra.gestion_proyectos.entity.user.UsersEntity;
+import com.syncra.gestion_proyectos.enums.AccessStatusEnum;
+import com.syncra.gestion_proyectos.enums.RoleUserEnum;
+import com.syncra.gestion_proyectos.enums.UserStatusEnum;
+import com.syncra.gestion_proyectos.repository.access.AcessRequestRepository;
+import com.syncra.gestion_proyectos.repository.user.UsersRepository;
+import com.syncra.gestion_proyectos.service.email.EmailService;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class AccessRequestService {
+
+    private final AcessRequestRepository accessRequestRepository;
+    private final UsersRepository usersRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
+
+    // Crea la peticion de acceso y se valida si ya hay una solicitud pendiente con
+    // ese correoo o si el correo ya esta registardo
+
+    public AccessMessageDTO<String> createRequest(AccessRequestDTO request) {
+
+        AccessMessageDTO<String> message = new AccessMessageDTO<>();
+
+        if (request.getFirstName() == null || request.getFirstName().isBlank()
+                || request.getLastName() == null || request.getLastName().isBlank()
+                || request.getEmail() == null || request.getEmail().isBlank()
+                || request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()
+                || request.getRole() == null) {
+
+            message.setMessage("Todos los campos son obligatorios");
+            return message;
+        }
+
+        // valida que no se pueda enviar una peticion con ADMIN
+        if (request.getRole() == null || request.getRole() == RoleUserEnum.ADMIN) {
+            message.setMessage("Rol no válido, solo se permite INSTRUCTOR o APPRENTICE");
+            return message;
+        }
+
+        // valida que el documento no esté en una solicitud pendiente
+        boolean existeDocRequest = accessRequestRepository.existsByDocumentNumberAndStatus(
+                request.getDocumentNumber(), AccessStatusEnum.PENDING);
+        if (existeDocRequest) {
+            message.setMessage("Documento inválido.");
+            return message;
+        }
+        // la ficha (groupName) solo es obligatoria para aprendices
+        if (request.getRole() == RoleUserEnum.APPRENTICE
+                && (request.getGroupName() == null || request.getGroupName().isBlank())) {
+            message.setMessage("La ficha es obligatoria para aprendices");
+            return message;
+        }
+
+        // valida que el documento no esté ya registrado en users
+        boolean existeDocUser = usersRepository.existsByDocumentNumber(request.getDocumentNumber());
+        if (existeDocUser) {
+            message.setMessage("Documento inválido.");
+            return message;
+        }
+
+        boolean existeRequest = accessRequestRepository.existsByEmailAndStatus(
+                request.getEmail(), AccessStatusEnum.PENDING);
+        if (existeRequest) {
+            message.setMessage("Correo inválido.");
+            return message;
+        }
+
+        boolean existeUser = usersRepository.existsByEmail(request.getEmail());
+        if (existeUser) {
+            message.setMessage("Correo inválido.");
+            return message;
+        }
+
+        // valida que el documento no sea null o vacío
+        if (request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()) {
+            message.setMessage("El número de documento es requerido");
+            return message;
+        }
+
+        // se guarda la con el estado pendoiente
+        AccessRequestEntity entity = new AccessRequestEntity();
+        entity.setFirstName(request.getFirstName());
+        entity.setLastName(request.getLastName());
+        entity.setEmail(request.getEmail());
+        entity.setDocumentNumber(request.getDocumentNumber());
+        entity.setGroupName(request.getGroupName());
+        entity.setRole(request.getRole());
+
+        accessRequestRepository.save(entity);
+        message.setMessage("Solicitud enviada correctamente");
+        return message;
+    }
+
+    // trae las solicitudes pendientes, y las convierte en la respuesta
+    public AccessMessageDTO<List<AccessResponseDTO>> findAllPending() {
+
+        AccessMessageDTO<List<AccessResponseDTO>> message = new AccessMessageDTO<>();
+
+        List<AccessRequestEntity> solicitudes = accessRequestRepository
+                .findAllByStatus(AccessStatusEnum.PENDING);
+
+        if (solicitudes.isEmpty()) {
+            message.setMessage("No hay solicitudes pendientes");
+            return message;
+        }
+
+        List<AccessResponseDTO> response = solicitudes.stream().map(s -> {
+            AccessResponseDTO dto = new AccessResponseDTO();
+            dto.setId(s.getId());
+            dto.setFirstName(s.getFirstName());
+            dto.setLastName(s.getLastName());
+            dto.setEmail(s.getEmail());
+            dto.setDocumentNumber(s.getDocumentNumber());
+            dto.setGroupName(s.getGroupName());
+            dto.setRole(s.getRole().name());
+            dto.setStatus(s.getStatus().name());
+            dto.setCreatedAt(s.getCreatedAt().toString());
+            return dto;
+        }).toList();
+
+        message.setMessage("Solicitudes encontradas");
+        message.setData(response);
+        return message;
+    }
+
+    // Valida las solicitudes, si ya existe la solicitud, cambia el estado, si ya se
+    // uso ese correo, envia la informacion a usuarios
+
+    public AccessMessageDTO<String> approveRequest(Long id) {
+
+        AccessMessageDTO<String> message = new AccessMessageDTO<>();
+
+        var requestO = accessRequestRepository.findById(id);
+        if (requestO.isEmpty()) {
+            message.setMessage("Solicitud no encontrada");
+            return message;
+        }
+
+        AccessRequestEntity request = requestO.get();
+
+        if (!request.getStatus().equals(AccessStatusEnum.PENDING)) {
+            message.setMessage("La solicitud ya fue aprobada");
+            return message;
+        }
+
+        boolean existeUser = usersRepository.existsByEmail(request.getEmail());
+        if (existeUser) {
+            message.setMessage("El email ya está registrado");
+            return message;
+        }
+
+        if (request.getDocumentNumber() == null || request.getDocumentNumber().isBlank()) {
+            message.setMessage("El número de documento es requerido para aprobar la solicitud");
+            return message;
+        }
+
+        // Contraseña temporal generada con el documento del usuario
+        String tempPassword = "Syncra_" + request.getDocumentNumber();
+
+        // Estado según rol: INSTRUCTOR → ACTIVE, APPRENTICE → IN_TRAINING
+        UserStatusEnum status = request.getRole() == RoleUserEnum.INSTRUCTOR
+                ? UserStatusEnum.ACTIVE
+                : UserStatusEnum.IN_TRAINING;
+
+        UsersEntity newUser = new UsersEntity();
+        newUser.setFirstName(request.getFirstName());
+        newUser.setLastName(request.getLastName());
+        newUser.setEmail(request.getEmail());
+        newUser.setDocumentNumber(request.getDocumentNumber());
+        newUser.setGroupName(request.getGroupName());
+        newUser.setRole(request.getRole());
+        newUser.setPassword(passwordEncoder.encode(tempPassword));
+        newUser.setStatus(status);
+
+        // El usuario debe cambiar su contraseña en el primer inicio de sesión
+        // Si no lo hace en 24 horas, la cuenta queda invalidada
+        newUser.setMustChangePassword(true);
+        newUser.setTempPasswordExpiresAt(LocalDateTime.now().plusHours(24));
+
+        usersRepository.save(newUser);
+
+        request.setStatus(AccessStatusEnum.APPROVED);
+        accessRequestRepository.save(request);
+
+        // Enviar correo con credenciales de acceso al nuevo usuario
+        emailService.sendAccessApprovedEmail(
+                request.getEmail(),
+                request.getFirstName(),
+                tempPassword);
+
+        message.setMessage("Usuario creado exitosamente");
+        return message;
+    }
+
+    // Este es por si el admin rechasa la peticion yu valida, si ya existe la
+    // solicitud, si ya fue aprovada y si fue rechazada, cambia el estado
+
+    public AccessMessageDTO<String> rejectRequest(Long id) {
+
+        AccessMessageDTO<String> message = new AccessMessageDTO<>();
+
+        var requestO = accessRequestRepository.findById(id);
+        if (requestO.isEmpty()) {
+            message.setMessage("Solicitud no encontrada");
+            return message;
+        }
+
+        AccessRequestEntity request = requestO.get();
+
+        if (!request.getStatus().equals(AccessStatusEnum.PENDING)) {
+            message.setMessage("La solicitud ya fue procesada");
+            return message;
+        }
+
+        accessRequestRepository.delete(request);
+
+        message.setMessage("Solicitud de " + request.getFirstName() + " " + request.getLastName() + " rechazada");
+        return message;
+    }
+}
